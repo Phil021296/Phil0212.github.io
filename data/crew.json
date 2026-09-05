@@ -1,0 +1,5 @@
+[
+  {"id":"lyra","name":"Dr. Lyra Venn","role":"Xenoarchäologin","status":"nicht rekrutiert","trust":0,"loyalty":0,"desc":"Eine brillante Forscherin mit gefährlich persönlichem Interesse an den Architekten."},
+  {"id":"kael","name":"Kael Voss","role":"Fixer / Schmuggler","status":"Kontakt","trust":10,"loyalty":0,"desc":"Charmant, vorsichtig und besser informiert, als für ihn gesund sein kann."},
+  {"id":"mara","name":"Mara Sato","role":"Pilotin","status":"nicht rekrutiert","trust":0,"loyalty":0,"desc":"Ehemalige Rennpilotin, die jedes Schiff fliegt, solange niemand nach den Besitzpapieren fragt."}
+]

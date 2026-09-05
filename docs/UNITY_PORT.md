@@ -1,9 +1,12 @@
-# Unity-Port-Konzept
+# Unity-Portplan
 
-Browser -> Unity
-- `core/gameCore.js` -> `Assets/Scripts/Core/GameCore.cs`
-- `core/actionInterpreter.js` -> `Assets/Scripts/Narrative/ActionInterpreter.cs`
-- `data/*.json` -> `Assets/StreamingAssets/Data/*.json`
-- `browser/*` wird NICHT portiert; Unity bekommt eine eigene UI Toolkit/uGUI-Schicht.
+Die Browser-GUI ist nur eine Präsentationsschicht. `core/gameCore.js` und `core/actionInterpreter.js` enthalten die Regeln, `data/` die Inhalte.
 
-Wichtig: IDs wie `ship_bridge`, `helios_bar`, `ruins_gate`, Trait-/Background-IDs und World-State-Flags bleiben identisch. Dadurch können Inhalte, Save-Struktur und Storyregeln portiert werden, ohne sie in Unity neu zu erfinden.
+Unity-Zielstruktur:
+- Assets/Scripts/Core/GameCore.cs
+- Assets/Scripts/Core/ActionInterpreter.cs
+- Assets/Scripts/Models/*.cs
+- Assets/StreamingAssets/Data/*.json
+- Assets/Scripts/UI/*
+
+IDs für Orte, Items, Traits, Herkünfte, NPCs und Quests bleiben identisch. Savegames verwenden dieselben Feldnamen, damit eine spätere Migration möglich bleibt.

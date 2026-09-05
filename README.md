@@ -1,34 +1,32 @@
-# VOIDBOUND: Echoes of the Fallen — Browser Vertical Slice v0.1
+# VOIDBOUND: Echoes of the Fallen — Browser v1.0
 
-## Start unter Windows
-1. ZIP entpacken.
-2. `start.bat` doppelklicken.
-3. Der Browser öffnet `http://localhost:8080`.
+Browserbasierter Sci-Fi-RPG-Vertical-Slice mit freier Texteingabe und Unity-portabler Datenstruktur.
 
-Falls `py` nicht verfügbar ist: Im Projektordner `python -m http.server 8080` starten und danach die Adresse im Browser öffnen.
+## Start lokal
+Unter Windows `start.bat` ausführen oder im Projektordner einen statischen Webserver starten, z. B. `python -m http.server 8000`.
 
-## Bereits enthalten
-- Charaktererstellung mit 6 Herkünften, Vor- und Nachteilen
-- 8 Attribute
-- 2 positive + 1 negative Eigenschaft
-- W20-Regelsystem
-- Freie Texteingaben mit regelbasierter Interpretation
-- dynamische Umgebungs-GUI für Raumschiff, Station und Alienruine
-- World State, Erinnerungen, Reputation, Inventar, Credits, HP und Schild
-- mehrere begehbare Orte und ein kleiner Akt-I-Vertical-Slice
-- JSON-Datenstruktur und getrennte Core-/UI-Schichten für späteren Unity-Port
-- Savegame-Export als JSON
+## Render
+Das Projekt enthält `render.yaml`. Repository mit Render als Blueprint verbinden. Die Anwendung ist eine statische Website.
+
+## v1.0-Funktionen
+- Charaktererstellung mit exakt 30 gemeinsam verteilbaren Attributpunkten
+- 8 Attribute, jeweils 1–8
+- 9 Herkünfte mit situativen Vor- und Nachteilen
+- positive und negative Eigenschaften
+- freie Texteingabe mit Intent-, Ziel-, Methoden- und Ton-Erkennung
+- W20-Proben mit Attribut-, Herkunfts- und Eigenschaftsboni
+- längere dynamische Storytexte mit Erfolgs- und Fehlschlagsvarianten
+- World State, Erinnerungen, gespeicherte Handlungen und NPC-Vertrauen
+- Inventar und Gegenstandsdaten
+- Missionen und Questfortschritt
+- Crew/Kontakte
+- Reputation
+- Schiffswerte und Reparatur-Nebenmission
+- Sternenkarte und freischaltbare Reiseziele
+- unterschiedliche Umgebungs-GUIs für Schiff, Maschinenraum, Quartier, Krankenstation, Frachtraum, Station, Bar, Markt, Planet und Architektenruinen
+- lokaler Autosave via localStorage
+- JSON-Savegame Download und Import
+- Akt I als spielbarer Storyabschnitt
 
 ## Unity-Port
-Die Browseroberfläche liegt ausschließlich unter `/browser`. Kernlogik liegt unter `/core`, Inhalte unter `/data`. Für Unity werden die Core-Klassen in C# gespiegelt; JSON-Strukturen und IDs bleiben erhalten.
-
-## Deployment auf Render
-Diese Version enthält eine `render.yaml` für Render Blueprint Deployments.
-
-1. Projekt in ein GitHub-Repository hochladen.
-2. In Render **New > Blueprint** auswählen.
-3. Das Repository verbinden.
-4. Render erkennt die `render.yaml` automatisch.
-5. Deployment starten.
-
-Die Seite wird als **Static Site** bereitgestellt. Es ist kein Build-Befehl notwendig; `index.html` liegt direkt im Publish-Verzeichnis.
+Spiellogik (`core/`) und Content (`data/*.json`) sind von der Browser-GUI getrennt. Beim Unity-Port werden die Core-Klassen nach C# übertragen; IDs, Datenmodelle, Story-/World-State-Strukturen und JSON-Inhalte können weitgehend übernommen werden.

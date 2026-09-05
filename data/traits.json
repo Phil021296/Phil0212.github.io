@@ -1,14 +1,18 @@
 {
   "positive":[
-    {"id":"pilot","name":"Geborener Pilot","desc":"Bonus bei Flugmanövern und Navigation."},
-    {"id":"tech_genius","name":"Technisches Genie","desc":"Bonus bei Hacking, Reparatur und Improvisation."},
-    {"id":"silver_tongue","name":"Silberzunge","desc":"Bonus auf soziale Proben."},
-    {"id":"eagle_eye","name":"Adlerauge","desc":"Bonus auf Wahrnehmung und Fernkampf."}
+    {"id":"pilot","name":"Geborener Pilot","desc":"+2 auf riskante Flugmanöver, Navigation und Ausweichmanöver.","tags":["piloting","navigation"]},
+    {"id":"tech_genius","name":"Technisches Genie","desc":"+2 auf Hacking, Reparaturen und technische Improvisation.","tags":["repair","hacking","engineering"]},
+    {"id":"silver_tongue","name":"Silberzunge","desc":"+2 auf Überzeugen, Verhandeln und glaubwürdige Täuschungen.","tags":["persuasion","negotiation","deception"]},
+    {"id":"eagle_eye","name":"Adlerauge","desc":"+2 auf Beobachtung, Spurenlesen und präzise Schüsse.","tags":["observation","tracking","ranged"]},
+    {"id":"iron_mind","name":"Eiserner Geist","desc":"+2 gegen Furcht, mentale Einflüsse und Architekten-Echos.","tags":["mental","resist"]},
+    {"id":"survivor","name":"Überlebenskünstler","desc":"+2 bei Umweltgefahren, Erschöpfung und Improvisation.","tags":["survival","improvise"]}
   ],
   "negative":[
-    {"id":"hothead","name":"Hitzkopf","desc":"Provokationen erschweren ruhige Lösungen."},
-    {"id":"greedy","name":"Gierig","desc":"Hohe Beute kann riskante Impulse auslösen."},
-    {"id":"wanted","name":"Gesucht","desc":"Behörden können dich erkennen."},
-    {"id":"paranoid","name":"Paranoid","desc":"Vertrauen steigt langsamer, Gefahr wird früher erkannt."}
+    {"id":"hothead","name":"Hitzkopf","desc":"Provokationen können ruhige soziale Lösungen erschweren.","tags":["calm_social"]},
+    {"id":"greedy","name":"Gierig","desc":"Große Beute und lukrative Angebote können dich ablenken oder andere misstrauisch machen.","tags":["temptation"]},
+    {"id":"wanted","name":"Gesucht","desc":"Sicherheitsbehörden und Kopfgeldjäger können dich identifizieren.","tags":["law"]},
+    {"id":"paranoid","name":"Paranoid","desc":"Du bemerkst Gefahren eher, baust Vertrauen aber langsamer auf.","tags":["trust"]},
+    {"id":"reckless","name":"Waghalsig","desc":"Riskante körperliche Aktionen werden verlockender, Fehlschläge aber härter.","tags":["risk"]},
+    {"id":"cyber_debt","name":"Cybernetik-Schuld","desc":"Eine alte medizinische Rechnung verbindet dich mit einem zweifelhaften Konzern.","tags":["helix"]}
   ]
 }

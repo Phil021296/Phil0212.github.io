@@ -1,0 +1,7 @@
+[
+  {"id":"compact_pistol","name":"Kompaktpistole","type":"weapon","desc":"Zuverlässige magnetische Seitenwaffe.","tags":["weapon","ranged"],"value":220},
+  {"id":"multitool","name":"Multitool","type":"tool","desc":"Schneider, Diagnosegerät und universeller Adapter.","tags":["repair","hacking","improvise"],"value":140},
+  {"id":"echo_artifact","name":"Unbekanntes Artefakt","type":"quest","desc":"Schwarzes, handtellergroßes Objekt ohne erkennbare Nähte. Reagiert auf bestimmte Signale.","tags":["artifact","ancient_tech"],"value":0},
+  {"id":"medkit","name":"Feld-Medkit","type":"consumable","desc":"Versiegelt Wunden und stabilisiert Kreislaufwerte.","tags":["medical"],"value":90},
+  {"id":"salvage_parts","name":"Bergungskomponenten","type":"material","desc":"Gemischte Ersatzteile aus einem alten Frachterwrack.","tags":["salvage","repair"],"value":180}
+]

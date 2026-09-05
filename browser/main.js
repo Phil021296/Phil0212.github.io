@@ -1,70 +1,78 @@
 import {GameCore} from '../core/gameCore.js';
 import {ActionInterpreter} from '../core/actionInterpreter.js';
 
-const [backgrounds,traits,world]=await Promise.all([
-  fetch('../data/backgrounds.json').then(r=>r.json()),
-  fetch('../data/traits.json').then(r=>r.json()),
-  fetch('../data/world.json').then(r=>r.json())
+const [backgrounds,traits,world,items,crew]=await Promise.all([
+  fetch('../data/backgrounds.json').then(r=>r.json()),fetch('../data/traits.json').then(r=>r.json()),fetch('../data/world.json').then(r=>r.json()),fetch('../data/items.json').then(r=>r.json()),fetch('../data/crew.json').then(r=>r.json())
 ]);
-const core=new GameCore({backgrounds,traits,world});
-const interpreter=new ActionInterpreter();
-const app=document.querySelector('#app');
-
-function statLabel(k){return ({strength:'Stärke',reflexes:'Reflexe',intelligence:'Intelligenz',perception:'Wahrnehmung',charisma:'Charisma',willpower:'Willenskraft',tech:'Technik',combat:'Kampf'})[k]||k}
+const core=new GameCore({backgrounds,traits,world,items,crew});const interpreter=new ActionInterpreter();const app=document.querySelector('#app');
+const STAT_LABEL={strength:'Stärke',reflexes:'Reflexe',intelligence:'Intelligenz',perception:'Wahrnehmung',charisma:'Charisma',willpower:'Willenskraft',tech:'Technik',combat:'Kampf'};
+const DEFAULT_STATS={strength:4,reflexes:4,intelligence:4,perception:4,charisma:4,willpower:4,tech:3,combat:3};
+const statLabel=k=>STAT_LABEL[k]||k;
+const html=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const story=s=>html(s).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').filter(Boolean).map(p=>`<p>${p}</p>`).join('');
 
 function creator(){
-  app.innerHTML=`<div class="creator-shell"><section class="creator-card">
-    <div class="eyebrow">VOIDBOUND // ECHOES OF THE FALLEN</div><h1>Wer bist du im Void?</h1>
-    <p>Erstelle deinen Charakter. Herkunft und Eigenschaften beeinflussen echte Proben, Reaktionen und spätere Konsequenzen.</p>
-    <label>Name<input id="name" value="Rook" maxlength="24"></label>
-    <div class="grid2"><div><h3>Herkunft</h3><div id="bgs" class="cards"></div></div><div><h3>Eigenschaften</h3><div id="traits"></div></div></div>
-    <h3>Attribute <small>Verteile Werte von 3–8</small></h3><div class="stats-editor" id="stats"></div>
-    <button class="primary" id="start">KAMPAGNE STARTEN</button>
-  </section></div>`;
-  let selectedBg=backgrounds[0].id; let positives=new Set([traits.positive[0].id,traits.positive[1].id]); let negative=traits.negative[0].id;
-  const bgBox=document.querySelector('#bgs');
-  backgrounds.forEach((b,i)=>{const el=document.createElement('button');el.className='select-card'+(i===0?' active':'');el.innerHTML=`<b>${b.name}</b><span>${b.desc}</span><em>+ ${b.plus}</em><i>– ${b.minus}</i>`;el.onclick=()=>{selectedBg=b.id;[...bgBox.children].forEach(x=>x.classList.remove('active'));el.classList.add('active')};bgBox.append(el)});
-  const tbox=document.querySelector('#traits');
-  tbox.innerHTML=`<div class="trait-title">2 Stärken</div>${traits.positive.map(t=>`<label class="check"><input type="checkbox" value="${t.id}" ${positives.has(t.id)?'checked':''}> <b>${t.name}</b><span>${t.desc}</span></label>`).join('')}<div class="trait-title danger">1 Schwäche</div>${traits.negative.map((t,i)=>`<label class="check"><input type="radio" name="neg" value="${t.id}" ${i===0?'checked':''}> <b>${t.name}</b><span>${t.desc}</span></label>`).join('')}`;
-  tbox.addEventListener('change',e=>{ if(e.target.type==='checkbox'){ const checked=[...tbox.querySelectorAll('input[type=checkbox]:checked')]; if(checked.length>2){e.target.checked=false;return;} positives=new Set(checked.map(x=>x.value)); } else negative=e.target.value; });
-  const stats={strength:5,reflexes:5,intelligence:5,perception:5,charisma:5,willpower:5,tech:5,combat:5};
-  const sbox=document.querySelector('#stats');
-  for(const k of Object.keys(stats)){sbox.insertAdjacentHTML('beforeend',`<label>${statLabel(k)}<input type="range" min="3" max="8" value="5" data-stat="${k}"><output>5</output></label>`)}
-  sbox.oninput=e=>{if(e.target.matches('input')){stats[e.target.dataset.stat]=+e.target.value;e.target.nextElementSibling.value=e.target.value}};
-  document.querySelector('#start').onclick=()=>{ if(positives.size!==2){alert('Bitte genau 2 positive Eigenschaften wählen.');return;} core.createCharacter({name:document.querySelector('#name').value,background:selectedBg,positiveTraits:[...positives],negativeTrait:negative,stats}); game(); };
+ let selectedBg=backgrounds[0].id, positives=new Set([traits.positive[0].id,traits.positive[1].id]),negative=traits.negative[0].id,stats={...DEFAULT_STATS};
+ app.innerHTML=`<div class="creator-shell"><section class="creator-card">
+ <div class="eyebrow">VOIDBOUND // ECHOES OF THE FALLEN // VERSION 1.0</div><h1>Wer wirst du im Void?</h1>
+ <p class="lead">Deine Werte sind begrenzt. Du besitzt insgesamt <b>30 Attributpunkte</b>. Herkunft und Eigenschaften geben situative Vor- und Nachteile, verändern diese 30 Punkte aber nicht.</p>
+ <label class="name-label">Name<input id="name" value="Rook" maxlength="24"></label>
+ <div class="grid2"><div><h3>Herkunft</h3><div id="bgs" class="cards"></div></div><div><h3>Eigenschaften</h3><div id="traits"></div></div></div>
+ <div class="allocation-head"><div><h3>Attribute</h3><span>Jeder Wert 1–8 · zusammen exakt 30</span></div><div id="points" class="points"></div></div>
+ <div class="stats-editor" id="stats"></div>
+ <div class="creator-actions"><button class="secondary" id="loadLocal">LOKALEN SPIELSTAND LADEN</button><label class="secondary file-btn">SAVE-DATEI LADEN<input id="loadFile" type="file" accept="application/json"></label><button class="primary" id="start">KAMPAGNE STARTEN</button></div>
+ </section></div>`;
+ const bgBox=document.querySelector('#bgs');
+ backgrounds.forEach((b,i)=>{const el=document.createElement('button');el.className='select-card'+(i===0?' active':'');el.innerHTML=`<b>${b.name}</b><span>${b.desc}</span><em>${b.plus}</em><i>– ${b.minus}</i>`;el.onclick=()=>{selectedBg=b.id;[...bgBox.children].forEach(x=>x.classList.remove('active'));el.classList.add('active')};bgBox.append(el)});
+ const tbox=document.querySelector('#traits');tbox.innerHTML=`<div class="trait-title">2 Stärken</div>${traits.positive.map(t=>`<label class="check"><input type="checkbox" value="${t.id}" ${positives.has(t.id)?'checked':''}><b>${t.name}</b><span>${t.desc}</span></label>`).join('')}<div class="trait-title danger">1 Schwäche</div>${traits.negative.map((t,i)=>`<label class="check"><input type="radio" name="neg" value="${t.id}" ${i===0?'checked':''}><b>${t.name}</b><span>${t.desc}</span></label>`).join('')}`;
+ tbox.onchange=e=>{if(e.target.type==='checkbox'){const checked=[...tbox.querySelectorAll('input[type=checkbox]:checked')];if(checked.length>2){e.target.checked=false;return}positives=new Set(checked.map(x=>x.value))}else negative=e.target.value};
+ const sbox=document.querySelector('#stats');
+ for(const k of Object.keys(stats)){sbox.insertAdjacentHTML('beforeend',`<div class="stat-control"><span>${statLabel(k)}</span><div><button data-dec="${k}">−</button><output data-out="${k}">${stats[k]}</output><button data-inc="${k}">+</button></div></div>`)}
+ function used(){return Object.values(stats).reduce((a,b)=>a+b,0)}
+ function renderPoints(){const u=used(),left=30-u;const p=document.querySelector('#points');p.innerHTML=`<b>${left}</b><span>Punkte übrig</span>`;p.className='points '+(left===0?'ok':left<0?'bad':'');document.querySelector('#start').disabled=left!==0}
+ sbox.onclick=e=>{const inc=e.target.dataset.inc,dec=e.target.dataset.dec;if(inc){if(stats[inc]<8&&used()<30)stats[inc]++;}if(dec){if(stats[dec]>1)stats[dec]--;}const k=inc||dec;if(k)document.querySelector(`[data-out="${k}"]`).value=stats[k];renderPoints()};renderPoints();
+ document.querySelector('#start').onclick=()=>{if(positives.size!==2)return alert('Bitte genau 2 positive Eigenschaften wählen.');try{core.createCharacter({name:document.querySelector('#name').value,background:selectedBg,positiveTraits:[...positives],negativeTrait:negative,stats});saveLocal();game(introText());}catch(e){alert(e.message)}};
+ document.querySelector('#loadLocal').onclick=()=>{const s=localStorage.getItem('voidbound-v1-save');if(!s)return alert('Kein lokaler Spielstand gefunden.');try{core.load(s);game('Der lokale Spielstand wurde geladen. Die Systeme der Wayfarer setzen dort wieder ein, wo du sie verlassen hast.')}catch(e){alert(e.message)}};
+ document.querySelector('#loadFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{core.load(await f.text());saveLocal();game('Spielstand geladen. Deine Entscheidungen, Beziehungen und Erinnerungen wurden wiederhergestellt.')}catch(err){alert(err.message)}};
 }
+
+function introText(){const p=core.state.player,bg=core.background();return `Seit drei Tagen gehört das Artefakt dir – falls man etwas besitzen kann, das auf keinem Scanner dieselbe Masse besitzt. Du hast es aus einem Wrack am Rand des Tantalus-Feldes geborgen, und seitdem schläfst du schlechter.\n\nJetzt liegt es auf der Hauptkonsole der VSS Wayfarer. Draußen schiebt sich Helios-9 langsam über die Frontscheibe. Eine ungelesene Nachricht blinkt im Kommunikationspuffer. Absender: Kael Voss.\n\nDeine Vergangenheit als **${bg.name}** hat dich gelehrt, dass Zufälle selten so sauber aussehen. Das Artefakt bleibt schwarz und reglos. Trotzdem hast du das Gefühl, dass es auf etwas wartet – vielleicht auf dich.`}
 
 function sceneArt(type){
-  if(type==='ship') return `<div class="scene-art ship-art"><div class="window"><div class="planet"></div><div class="stars"></div></div><div class="console left"></div><div class="console right"></div><div class="deck-lines"></div></div>`;
-  if(type==='station') return `<div class="scene-art station-art"><div class="neon">HELIOS-9</div><div class="gantry g1"></div><div class="gantry g2"></div><div class="crowd"></div></div>`;
-  return `<div class="scene-art ruins-art"><div class="moon"></div><div class="monolith m1"></div><div class="monolith m2"></div><div class="glyphs">◈ ⟡ ◇ ⌁</div></div>`;
+ const common='<div class="dust"></div><div class="vignette"></div>';
+ if(type==='ship')return `<div class="scene-art ship-art"><div class="window"><div class="planet"></div><div class="stars"></div></div><div class="console left"></div><div class="console right"></div><div class="deck-lines"></div>${common}</div>`;
+ if(type==='ship_engine')return `<div class="scene-art engine-art"><div class="reactor"></div><div class="pipe p1"></div><div class="pipe p2"></div><div class="sparks"></div>${common}</div>`;
+ if(['ship_quarters','ship_med','ship_cargo','ship_airlock'].includes(type))return `<div class="scene-art interior-art ${type}"><div class="wallpanel"></div><div class="room-object"></div><div class="door"></div>${common}</div>`;
+ if(['station','station_market','security','bar'].includes(type))return `<div class="scene-art station-art ${type}"><div class="neon">${type==='bar'?'LAST LIGHT':'HELIOS-9'}</div><div class="gantry g1"></div><div class="gantry g2"></div><div class="crowd"></div>${common}</div>`;
+ if(type==='planet')return `<div class="scene-art planet-art"><div class="horizon"></div><div class="distant-ruin"></div><div class="moon"></div>${common}</div>`;
+ return `<div class="scene-art ruins-art ${type}"><div class="moon"></div><div class="monolith m1"></div><div class="monolith m2"></div><div class="glyphs">◈ ⟡ ◇ ⌁</div>${common}</div>`;
 }
 
-function game(lastText='Du erwachst auf der Brücke der Wayfarer. Das unbekannte Artefakt liegt vor dir auf der Konsole.'){
-  const loc=world.locations[core.state.location], p=core.state.player;
-  app.innerHTML=`<main class="game-shell scene-${loc.type}">
-    ${sceneArt(loc.type)}
-    <header><div><span class="logo">VOIDBOUND</span><small>ECHOES OF THE FALLEN</small></div><div class="topstats"><span>◉ ${core.state.credits} cr</span><span>HP ${core.state.hp}%</span><span>SH ${core.state.shield}%</span></div></header>
-    <aside class="left-panel glass"><div class="portrait">${p.name.slice(0,1).toUpperCase()}</div><h2>${p.name}</h2><span class="muted">${backgrounds.find(b=>b.id===p.background)?.name}</span><div class="meters"><label>Gesundheit<div><i style="width:${core.state.hp}%"></i></div></label><label>Schild<div><i style="width:${core.state.shield}%"></i></div></label></div><div class="navbuttons"><button data-panel="char">CHARAKTER</button><button data-panel="inventory">INVENTAR</button><button data-panel="memory">ERINNERUNGEN</button><button id="save">SAVEGAME</button></div></aside>
-    <section class="narrative glass"><div class="location-tag">${loc.type.toUpperCase()}</div><h1>${loc.name}</h1><p class="locdesc">${loc.desc}</p><div id="result" class="result"><p>${lastText}</p></div><div class="prompt"><label>WAS MÖCHTEST DU TUN ODER SAGEN?</label><textarea id="action" placeholder="Schreibe frei, z. B. Ich scanne das Artefakt ..."></textarea><button id="act" class="primary">AKTION AUSFÜHREN</button></div></section>
-    <aside class="right-panel glass"><h3>SITUATION</h3><div class="context">${contextFor(core.state.location)}</div><h3>AKT I · DAS SIGNAL</h3><p>${core.state.flags.knowsEcho?'Du hast Hinweise auf „ECHO“ gefunden. Finde heraus, was dahinter steckt.':'Untersuche das Artefakt und finde heraus, warum Helios-9 dich kontaktiert hat.'}</p><h3>LETZTE EREIGNISSE</h3><div class="mini-log">${core.state.log.slice(0,5).map(x=>`<span>${x.text}</span>`).join('')}</div></aside>
-    <footer>Freie Texteingabe · regelbasierte Konsequenzen · World-State aktiv</footer>
-  </main><div id="modal"></div>`;
-  document.querySelector('#act').onclick=act; document.querySelector('#action').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();act()}});
-  document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>showPanel(b.dataset.panel));
-  document.querySelector('#save').onclick=downloadSave;
+function game(lastText){
+ const loc=core.location(),p=core.state.player;const bg=core.background();saveLocal();
+ app.innerHTML=`<main class="game-shell scene-${loc.type}">${sceneArt(loc.type)}
+ <header><div><span class="logo">VOIDBOUND</span><small>ECHOES OF THE FALLEN · v1.0</small></div><div class="topstats"><span>◉ ${core.state.credits} cr</span><span>HP ${core.state.hp}%</span><span>SH ${core.state.shield}%</span><span>LV ${core.state.level}</span></div></header>
+ <aside class="left-panel glass"><div class="portrait">${html(p.name[0]?.toUpperCase()||'?')}</div><h2>${html(p.name)}</h2><span class="muted">${html(bg?.name)}</span><div class="meters"><label>Gesundheit <b>${core.state.hp}%</b><div><i style="width:${core.state.hp}%"></i></div></label><label>Schild <b>${core.state.shield}%</b><div><i style="width:${core.state.shield}%"></i></div></label></div><div class="navbuttons"><button data-panel="char">CHARAKTER</button><button data-panel="inventory">INVENTAR</button><button data-panel="quests">MISSIONEN</button><button data-panel="crew">CREW</button><button data-panel="ship">SCHIFF</button><button data-panel="map">STERNENKARTE</button><button data-panel="rep">REPUTATION</button><button data-panel="memory">ERINNERUNGEN</button><button data-panel="help">SPIELHILFE</button><button id="save">SAVE-DATEI</button></div></aside>
+ <section class="narrative glass"><div class="location-tag">${loc.zone.toUpperCase()} // ${loc.type.toUpperCase()}</div><h1>${html(loc.name)}</h1><p class="locdesc">${html(loc.desc)}</p><div id="result" class="result">${story(lastText||'Was möchtest du tun?')}</div><div class="prompt"><label>DEINE HANDLUNG – FREIE TEXTEINGABE</label><textarea id="action" placeholder="z. B. Ich beobachte die Söldner erst, tue dann so als wäre ich Wartungstechniker und versuche unbemerkt hinter Kael zu gelangen."></textarea><div class="prompt-bottom"><span>Das Spiel wertet Absicht, Ziel, Methode und Ton deiner Eingabe aus.</span><button id="act" class="primary">AKTION AUSFÜHREN</button></div></div></section>
+ <aside class="right-panel glass"><h3>SITUATION</h3><div class="chips">${(loc.affordances||[]).map(x=>`<span>${html(x)}</span>`).join('')}</div><h3>AKT I · DAS SIGNAL</h3>${questSummary()}<h3>LETZTE EREIGNISSE</h3><div class="mini-log">${core.state.log.slice(0,6).map(x=>`<span>${html(x.text)}</span>`).join('')}</div></aside>
+ <footer>World State aktiv · ${core.state.memories.length} Erinnerungen · ${core.state.history.length} gespeicherte Handlungen · Autosave aktiv</footer></main><div id="modal"></div>`;
+ document.querySelector('#act').onclick=act;document.querySelector('#action').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();act()}};document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>showPanel(b.dataset.panel));document.querySelector('#save').onclick=downloadSave;
 }
-function contextFor(loc){
-  const m={ship_bridge:'Artefakt auf Konsole<br>Helios-9 voraus<br>Dockfreigabe verfügbar',ship_corridor:'Maschinenraum nahe<br>Instabile Energieversorgung<br>Brücke achtern',helios_docks:'Wayfarer angedockt<br>Bar „Last Light“ geöffnet<br>Informant: Kael Voss',helios_bar:'3 bewaffnete Söldner<br>Kael Voss am hinteren Tisch<br>Wartungszugang vorhanden',ruins_gate:'Architektentor aktiv<br>Atmosphäre dünn<br>Artefakt reagiert'};return m[loc]||'';
+function questSummary(){const q=core.state.quests.main_echo;return `<p><b>${html(q.title)}</b></p>${q.objectives.map(x=>`<p class="objective">◆ ${html(x)}</p>`).join('')}`}
+function act(){const ta=document.querySelector('#action');const text=ta.value.trim();const r=interpreter.interpret(text,core);game(r.text)}
+function saveLocal(){if(core.state.player)localStorage.setItem('voidbound-v1-save',core.serialize())}
+function downloadSave(){const blob=new Blob([core.serialize()],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`voidbound-v1-${core.state.player.name}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+function showPanel(type){const m=document.querySelector('#modal'),p=core.state.player;let title='',body='';
+ if(type==='char'){title='Charakter';body=`<div class="char-head"><div class="portrait big">${html(p.name[0])}</div><div><h2>${html(p.name)}</h2><p>${html(core.background().name)}</p></div></div><div class="sheet">${Object.entries(p.stats).map(([k,v])=>`<div><span>${statLabel(k)}</span><b>${v}</b></div>`).join('')}</div><h3>Eigenschaften</h3><div class="item"><b>+</b>${p.positiveTraits.map(id=>core.trait(id)?.name).join(' · ')}</div><div class="item"><b>–</b>${core.trait(p.negativeTrait)?.name}</div><p class="muted">Attributsumme: ${Object.values(p.stats).reduce((a,b)=>a+b,0)} / 30</p>`}
+ if(type==='inventory'){title='Inventar';body=core.state.inventory.map(id=>{const i=core.item(id);return `<div class="item"><b>${html(i.name)}</b><span>${html(i.desc)}</span><small>${html(i.type)}</small></div>`}).join('')}
+ if(type==='quests'){title='Missionen';body=Object.values(core.state.quests).map(q=>`<div class="quest"><b>${html(q.title)}</b><em>${html(q.status)}</em>${q.objectives.map(o=>`<p>◆ ${html(o)}</p>`).join('')}</div>`).join('')}
+ if(type==='crew'){title='Crew & Kontakte';body=crew.map(c=>{const s=core.state.npc[c.id]||{};return `<div class="crew-card"><b>${html(c.name)}</b><small>${html(c.role)}</small><p>${html(c.desc)}</p><div>Vertrauen <strong>${s.trust??c.trust}</strong> · ${html(s.status||c.status)}</div></div>`}).join('')}
+ if(type==='ship'){title=core.state.ship.name;const s=core.state.ship;body=`<div class="ship-grid">${[['Hülle',s.hull],['Schild',core.state.shield],['Treibstoff',s.fuel],['Reaktor',s.reactorStability]].map(([n,v])=>`<div><span>${n}</span><b>${v}%</b><i><u style="width:${v}%"></u></i></div>`).join('')}</div><h3>Module</h3>${s.modules.map(x=>`<div class="item">${html(x)}</div>`).join('')}<p>Frachtraum: ${s.cargo}/${s.cargoMax}</p>`}
+ if(type==='map'){title='Sternenkarte';body=`<div class="map"><button data-go="ship_bridge">VSS WAYFARER</button><button data-go="helios_docks">HELIOS-9</button><button data-go="nereid_surface" ${core.state.flags.nereidUnlocked?'':'disabled'}>NEREID IV ${core.state.flags.nereidUnlocked?'':'· GESPERRT'}</button></div><p class="muted">Direkte Fernreisen sind nur möglich, wenn das Ziel storyseitig bekannt ist. Innerhalb eines Ortes bewegst du dich über deine freie Texteingabe.</p>`}
+ if(type==='rep'){title='Reputation';const names={union:'Terranische Union',crimson:'Crimson Fleet',helix:'Helix Corporation',freeSystems:'Freie Systeme'};body=Object.entries(core.state.reputation).map(([k,v])=>`<div class="rep-row"><span>${names[k]||k}</span><b>${v>0?'+':''}${v}</b></div>`).join('')}
+ if(type==='memory'){title='Erinnerungen & Konsequenzen';body=core.state.memories.length?[...core.state.memories].sort((a,b)=>b.importance-a.importance).map(x=>`<div class="memory"><b>${x.importance}</b><span>${html(x.text)}</span><small>${html(x.type)} · Runde ${x.turn}</small></div>`).join(''):'<p>Noch keine prägenden Erinnerungen.</p>'}
+ if(type==='help'){title='So spielst du';body=`<p>Du musst keine Antwortoption anklicken. Schreibe natürlich, was dein Charakter tun oder sagen soll. Je konkreter deine Eingabe, desto genauer kann das Regelsystem Methode und Ziel bestimmen.</p><div class="item"><b>Beispiel:</b><span>„Ich beobachte erst, ob die Wachen nervös wirken. Dann behaupte ich ruhig, ich sei von der Wartung und müsse hinter ihnen an das Terminal.“</span></div><p>Die Engine nutzt deine Attribute, Herkunft, Eigenschaften, Ausrüstung, den Ort und vorherige Entscheidungen. Ein Fehlschlag beendet eine Idee nicht automatisch – du kannst sie verändern oder kombinieren.</p>`}
+ m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button><div class="eyebrow">VOIDBOUND DATABASE</div><h1>${title}</h1>${body}</div></div>`;document.querySelector('#close').onclick=()=>m.innerHTML='';m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const id=b.dataset.go;if(id==='nereid_surface'&&!core.state.flags.nereidUnlocked)return;core.forceTravel(id);m.innerHTML='';game(`Die Navigation bestätigt den Kurs. ${core.location().desc}`)})
 }
-function act(){const ta=document.querySelector('#action');const text=ta.value.trim();const r=interpreter.interpret(text,core);core.pushLog(text||'gezögert');game(r.text)}
-function showPanel(type){
- const m=document.querySelector('#modal'); const p=core.state.player;
- let body='';
- if(type==='char') body=`<h2>${p.name}</h2><div class="sheet">${Object.entries(p.stats).map(([k,v])=>`<div><span>${statLabel(k)}</span><b>${v}</b></div>`).join('')}</div>`;
- if(type==='inventory') body=`<h2>Inventar</h2>${core.state.inventory.map(i=>`<div class="item">${i}</div>`).join('')}`;
- if(type==='memory') body=`<h2>Erinnerungen</h2>${core.state.memories.length?core.state.memories.sort((a,b)=>b.importance-a.importance).map(x=>`<div class="item"><b>${x.importance}</b> ${x.text}</div>`).join(''):'<p>Noch keine prägenden Erinnerungen.</p>'}`;
- m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button>${body}</div></div>`; document.querySelector('#close').onclick=()=>m.innerHTML='';
-}
-function downloadSave(){const blob=new Blob([core.serialize()],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='voidbound-save.json';a.click();URL.revokeObjectURL(a.href)}
 creator();
