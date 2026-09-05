@@ -1,0 +1,9 @@
+{
+  "locations":{
+    "ship_bridge":{"name":"VSS Wayfarer · Brücke","type":"ship","desc":"Die Brücke deines alten Langstreckenschiffs summt im gedämpften Licht. Vor den Sichtfenstern liegt Helios-9."},
+    "ship_corridor":{"name":"VSS Wayfarer · Mitteldeck","type":"ship","desc":"Ein enger Korridor aus Metall, Leitungen und flackernden Wartungsanzeigen. Hinter einer Schottwand liegt der Maschinenraum."},
+    "helios_bar":{"name":"Helios-9 · Bar 'Last Light'","type":"station","desc":"Neonlicht spiegelt sich auf Metall und Glas. Schmuggler, Dockarbeiter und Söldner reden leiser, als du eintrittst."},
+    "helios_docks":{"name":"Helios-9 · Dockring","type":"station","desc":"Frachter hängen an massiven Andockarmen. Frachtcontainer, Drohnen und Wartungscrews bewegen sich zwischen kalten Stahlträgern."},
+    "ruins_gate":{"name":"Nereid IV · Architektenruine","type":"ruins","desc":"Schwarzer Stein ragt aus violettem Staub. Dünne Lichtadern erwachen unter deinen Schritten und reagieren auf dein Artefakt."}
+  }
+}
