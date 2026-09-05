@@ -30,3 +30,22 @@ Das Projekt enthält `render.yaml`. Repository mit Render als Blueprint verbinde
 
 ## Unity-Port
 Spiellogik (`core/`) und Content (`data/*.json`) sind von der Browser-GUI getrennt. Beim Unity-Port werden die Core-Klassen nach C# übertragen; IDs, Datenmodelle, Story-/World-State-Strukturen und JSON-Inhalte können weitgehend übernommen werden.
+
+## PostgreSQL / Neon Cloud-Speicher
+
+Diese Ausgabe enthält zusätzlich einen Node-Backend-Service. Jeder Browser erhält beim ersten Aufruf eine anonyme Spieler-ID und ein geheimes Spielertoken. Das Token wird nur im Browser gespeichert; in PostgreSQL liegt ausschließlich dessen SHA-256-Hash. Der komplette Spielstand wird serverseitig als JSONB gespeichert.
+
+### Render
+
+1. Projekt zu GitHub hochladen.
+2. In Render als Blueprint aus `render.yaml` anlegen.
+3. Render fragt beim ersten Blueprint-Setup nach `DATABASE_URL`.
+4. Dort die Neon PostgreSQL Connection String als geheime Environment Variable hinterlegen. Sie darf nicht in `render.yaml`, JavaScript oder Git stehen.
+5. Deploy starten. Die Tabellen `players` und `savegames` werden beim Serverstart automatisch angelegt.
+
+### Datenmodell
+
+- `players`: Spieler-ID, Token-Hash, Charakter-/Anzeigename, Version, Erstellungszeit, letzte Aktivität.
+- `savegames`: genau ein aktueller Cloud-Spielstand pro Spieler, gespeichert als PostgreSQL `JSONB`.
+
+Der lokale Browser-Spielstand bleibt als Fallback bestehen. Dadurch kann bei einem kurzen Datenbank- oder Netzwerkproblem weitergespielt werden.
