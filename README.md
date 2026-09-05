@@ -21,3 +21,14 @@ Falls `py` nicht verfügbar ist: Im Projektordner `python -m http.server 8080` s
 
 ## Unity-Port
 Die Browseroberfläche liegt ausschließlich unter `/browser`. Kernlogik liegt unter `/core`, Inhalte unter `/data`. Für Unity werden die Core-Klassen in C# gespiegelt; JSON-Strukturen und IDs bleiben erhalten.
+
+## Deployment auf Render
+Diese Version enthält eine `render.yaml` für Render Blueprint Deployments.
+
+1. Projekt in ein GitHub-Repository hochladen.
+2. In Render **New > Blueprint** auswählen.
+3. Das Repository verbinden.
+4. Render erkennt die `render.yaml` automatisch.
+5. Deployment starten.
+
+Die Seite wird als **Static Site** bereitgestellt. Es ist kein Build-Befehl notwendig; `index.html` liegt direkt im Publish-Verzeichnis.
