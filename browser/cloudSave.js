@@ -2,12 +2,20 @@ const ID_KEY='voidbound-cloud-player-id';
 const TOKEN_KEY='voidbound-cloud-player-token';
 
 class CloudSave {
-  constructor(){this.playerId=localStorage.getItem(ID_KEY);this.playerToken=localStorage.getItem(TOKEN_KEY);this.ready=false;this.online=false;this.lastSavedAt=null;this.saveTimer=null;}
+  constructor(){
+    this.playerId=localStorage.getItem(ID_KEY);
+    this.playerToken=localStorage.getItem(TOKEN_KEY);
+    this.ready=false;
+    this.online=false;
+    this.lastSavedAt=null;
+    this.lastRevision=0;
+    this.inFlight=Promise.resolve();
+  }
   headers(){return {'Content-Type':'application/json','x-player-id':this.playerId||'','Authorization':`Bearer ${this.playerToken||''}`};}
   async init(){
     try{
       if(this.playerId&&this.playerToken){
-        const r=await fetch('/api/player',{headers:this.headers()});
+        const r=await fetch('/api/player',{headers:this.headers(),cache:'no-store'});
         if(r.ok){this.ready=true;this.online=true;return true;}
         if(r.status===401){localStorage.removeItem(ID_KEY);localStorage.removeItem(TOKEN_KEY);this.playerId=null;this.playerToken=null;}
       }
@@ -22,20 +30,28 @@ class CloudSave {
   async save(state){
     if(!state?.player)return false;
     if(!this.ready&&!(await this.init()))return false;
-    try{
-      const r=await fetch('/api/save',{method:'PUT',headers:this.headers(),body:JSON.stringify({state})});
-      if(!r.ok)throw new Error(`save_${r.status}`);
-      const data=await r.json();this.online=true;this.lastSavedAt=data.savedAt;return true;
-    }catch(error){console.warn('Cloud-Save fehlgeschlagen:',error);this.online=false;return false;}
+    // Snapshot verhindert, dass sich der Zustand während eines laufenden Requests weiter verändert.
+    const snapshot=JSON.parse(JSON.stringify(state));
+    const doSave=async()=>{
+      try{
+        const r=await fetch('/api/save',{method:'PUT',headers:this.headers(),body:JSON.stringify({state:snapshot}),cache:'no-store'});
+        if(!r.ok)throw new Error(`save_${r.status}`);
+        const data=await r.json();
+        this.online=true;this.lastSavedAt=data.savedAt;this.lastRevision=data.revision||this.lastRevision;
+        return true;
+      }catch(error){console.warn('Cloud-Save fehlgeschlagen:',error);this.online=false;return false;}
+    };
+    // Speichervorgänge strikt nacheinander ausführen. Dadurch kann ein älterer Request nie einen neueren überschreiben.
+    this.inFlight=this.inFlight.then(doSave,doSave);
+    return this.inFlight;
   }
-  queueSave(state,delay=350){clearTimeout(this.saveTimer);this.saveTimer=setTimeout(()=>this.save(state),delay);}
   async load(){
     if(!this.ready&&!(await this.init()))return null;
     try{
-      const r=await fetch('/api/save',{headers:this.headers()});
+      const r=await fetch('/api/save',{headers:this.headers(),cache:'no-store'});
       if(r.status===404)return null;
       if(!r.ok)throw new Error(`load_${r.status}`);
-      const data=await r.json();this.online=true;this.lastSavedAt=data.updatedAt;return data.state;
+      const data=await r.json();this.online=true;this.lastSavedAt=data.updatedAt;this.lastRevision=data.revision||0;return data.state;
     }catch(error){console.warn('Cloud-Load fehlgeschlagen:',error);this.online=false;return null;}
   }
 }

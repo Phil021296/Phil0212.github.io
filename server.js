@@ -50,6 +50,7 @@ async function initDatabase(){
     );
 
     CREATE INDEX IF NOT EXISTS idx_players_last_seen ON players(last_seen_at DESC);
+    ALTER TABLE savegames ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0;
     CREATE INDEX IF NOT EXISTS idx_savegames_updated ON savegames(updated_at DESC);
   `);
 }
@@ -97,9 +98,9 @@ app.get('/api/player',authenticate,async(req,res)=>{
 });
 
 app.get('/api/save',authenticate,async(req,res)=>{
-  const {rows}=await pool.query('SELECT game_version,state,updated_at FROM savegames WHERE player_id=$1',[req.playerId]);
+  const {rows}=await pool.query('SELECT game_version,state,updated_at,revision FROM savegames WHERE player_id=$1',[req.playerId]);
   if(!rows[0])return res.status(404).json({error:'no_savegame'});
-  res.json({gameVersion:rows[0].game_version,state:rows[0].state,updatedAt:rows[0].updated_at});
+  res.json({gameVersion:rows[0].game_version,state:rows[0].state,updatedAt:rows[0].updated_at,revision:Number(rows[0].revision||0)});
 });
 
 app.put('/api/save',authenticate,async(req,res)=>{
@@ -113,13 +114,18 @@ app.put('/api/save',authenticate,async(req,res)=>{
   try{
     await client.query('BEGIN');
     await client.query('UPDATE players SET display_name=$1,game_version=$2,last_seen_at=NOW() WHERE id=$3',[displayName,gameVersion,req.playerId]);
-    await client.query(`
-      INSERT INTO savegames(player_id,game_version,state,updated_at)
-      VALUES($1,$2,$3::jsonb,NOW())
-      ON CONFLICT(player_id) DO UPDATE SET game_version=EXCLUDED.game_version,state=EXCLUDED.state,updated_at=NOW()
+    const saved=await client.query(`
+      INSERT INTO savegames(player_id,game_version,state,updated_at,revision)
+      VALUES($1,$2,$3::jsonb,NOW(),1)
+      ON CONFLICT(player_id) DO UPDATE SET
+        game_version=EXCLUDED.game_version,
+        state=EXCLUDED.state,
+        updated_at=NOW(),
+        revision=savegames.revision+1
+      RETURNING updated_at,revision
     `,[req.playerId,gameVersion,serialized]);
     await client.query('COMMIT');
-    res.json({ok:true,savedAt:new Date().toISOString()});
+    res.json({ok:true,savedAt:saved.rows[0].updated_at,revision:Number(saved.rows[0].revision)});
   }catch(error){
     await client.query('ROLLBACK');
     console.error('Save error:',error);

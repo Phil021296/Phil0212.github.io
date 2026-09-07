@@ -49,3 +49,18 @@ Diese Ausgabe enthält zusätzlich einen Node-Backend-Service. Jeder Browser erh
 - `savegames`: genau ein aktueller Cloud-Spielstand pro Spieler, gespeichert als PostgreSQL `JSONB`.
 
 Der lokale Browser-Spielstand bleibt als Fallback bestehen. Dadurch kann bei einem kurzen Datenbank- oder Netzwerkproblem weitergespielt werden.
+
+
+## v1.0.1 – Sofort-Autosave & dynamische Reaktionen
+
+- Nach **jeder ausgeführten Spieleraktion** wird zuerst lokal und anschließend sofort in Neon PostgreSQL gespeichert.
+- Cloud-Saves werden strikt nacheinander geschrieben, damit ein langsamer älterer Request niemals einen neueren Spielstand überschreibt.
+- Jeder Datenbank-Save besitzt eine fortlaufende `revision`.
+- Beim Start werden lokaler und Cloud-Spielstand verglichen. Der Spielstand mit der höheren Zugnummer gewinnt; ein neuerer lokaler Stand wird automatisch wieder in Neon hochgeladen.
+- `lastPlayerInput` und `lastNarrative` werden mitgespeichert. Nach einem Neustart wird exakt die letzte Situation wieder angezeigt.
+- W20-Würfe nutzen `crypto.getRandomValues()` (mit Fallback) und vermeiden direkt identische Folgewürfe.
+- Identische Texteingaben werden gezählt. Wiederholte Taktiken lösen nicht erneut denselben Storyblock aus, sondern werden als neuer Versuch in einer bereits veränderten Welt ausgewertet.
+- Wiederholte Aktionen können mit zunehmender Vorhersehbarkeit schwieriger werden.
+- Die Erzählengine berücksichtigt den konkreten Wortlaut stärker und ergänzt wechselnde Sinneseindrücke, Folgen und Anschlussmöglichkeiten.
+
+Beim nächsten Deploy führt der Server die nötige Datenbankmigration (`revision` in `savegames`) automatisch mit `ALTER TABLE ... IF NOT EXISTS` durch.

@@ -29,14 +29,106 @@ export class ActionInterpreter{
 
   interpret(text,core){
     if(!text.trim())return this.out('Du sagst nichts. Für einen Moment hörst du nur das ferne Summen der Systeme. Die Situation bleibt bestehen – und mit ihr das Gefühl, dass Untätigkeit irgendwann ebenfalls eine Entscheidung wird.','neutral');
-    const a=this.parse(text,core);core.advanceTurn();core.recordAction(a);core.pushLog(a.raw);
+    const a=this.parse(text,core);
+    a.repeatCount=core.repeatCount(a.raw);
+    core.state.currentActionRepeat=a.repeatCount;
+    core.advanceTurn();core.recordAction(a);core.pushLog(a.raw);
+    if(a.repeatCount>0)return this.finish(this.repeatedAttempt(a,core),a,core);
     const loc=core.state.location;
-    const handler=this[`at_${loc}`];if(handler){const r=handler.call(this,a,core);if(r)return r;}
-    const movement=this.tryTravel(a,core);if(movement)return movement;
-    return this.generic(a,core);
+    const handler=this[`at_${loc}`];if(handler){const r=handler.call(this,a,core);if(r)return this.finish(r,a,core);}
+    const movement=this.tryTravel(a,core);if(movement)return this.finish(movement,a,core);
+    return this.finish(this.generic(a,core),a,core);
   }
 
   out(text,kind='neutral',check=null,meta={}){return {text,kind,check,...meta};}
+
+  pick(list,core){return list[core.randomInt(0,list.length-1)];}
+
+  repeatedAttempt(a,core){
+    const loc=core.location();
+    let stat='perception',tags=['observation'],base=11;
+    if(a.intents.includes('talk')){stat='charisma';tags=a.tone==='threatening'?['intimidation']:a.tone==='deceptive'?['deception']:['persuasion'];base=12;}
+    else if(a.intents.includes('attack')){stat='combat';tags=['combat'];base=14;}
+    else if(a.intents.includes('hack')||a.intents.includes('repair')){stat='tech';tags=['hacking','repair','engineering'];base=12;}
+    else if(a.intents.includes('sneak')){stat='reflexes';tags=['stealth'];base=12;}
+    else if(a.intents.includes('use')){stat='intelligence';tags=['analysis','improvise'];base=12;}
+    const c=core.check(stat,base,tags);
+    const n=a.repeatCount+1;
+    const openings=[
+      `Du setzt denselben Plan ein weiteres Mal an. Beim **${n}. Versuch** ist die Ausgangslage jedoch nicht mehr dieselbe.`,
+      `Du wiederholst deine Handlung fast wortgleich. Diesmal erkennst du schon beim Ansatz, welche Details sich seit dem letzten Versuch verschoben haben.`,
+      `Noch einmal: **${esc(a.raw)}**. Aber Wiederholung bedeutet hier nicht Zurückspulen – die Welt hat den vorherigen Versuch bereits erlebt.`
+    ];
+    const successes=[
+      `Diesmal findest du den Moment, der dir zuvor gefehlt hat. Eine kleine Lücke öffnet sich, und aus dem alten Plan entsteht tatsächlich ein neuer Vorteil.`,
+      `Der bekannte Ablauf hilft dir, schneller zu reagieren. Du korrigierst genau das Detail, das beim letzten Mal gestört hat, und kommst diesmal weiter.`,
+      `Gerade weil du den Ansatz kennst, bemerkst du eine Abweichung. Du nutzt sie sofort – und die Situation antwortet anders als zuvor.`
+    ];
+    const failures=[
+      `Der wiederholte Ansatz wird erkannt. Was vorher noch Überraschung erzeugte, trifft jetzt auf vorbereiteten Widerstand.`,
+      `Du erreichst denselben kritischen Punkt wie zuvor, aber diesmal kippt die Lage früher. Die Umgebung hat sich auf dieses Muster eingestellt.`,
+      `Der Plan ist nicht sinnlos, nur verbraucht. Die Reaktion kommt schneller als beim letzten Mal und zwingt dich, den nächsten Schritt neu zu denken.`
+    ];
+    const worldChanges=[
+      `In ${loc.name} verändert sich währenddessen etwas Kleines, aber Reales: ${this.pick(loc.affordances||['ein neuer Blickwinkel wird sichtbar'],core)}.`,
+      `Du bemerkst nebenbei, dass **${this.pick(loc.affordances||['die unmittelbare Umgebung'],core)}** inzwischen anders auf deine Präsenz wirkt.`,
+      `Der Ort bleibt nicht stehen. **${this.pick(loc.affordances||['eine neue Möglichkeit'],core)}** rückt stärker in den Vordergrund als noch vor einem Zug.`
+    ];
+    return this.out(`${this.rollLine(c)}\n\n${this.pick(openings,core)}\n\n${c.success?this.pick(successes,core):this.pick(failures,core)}\n\n${this.pick(worldChanges,core)}`,c.success?'success':'fail',c,{repeated:true});
+  }
+
+  finish(result,a,core){
+    const loc=core.location();
+    const sceneBeats={
+      ship:[
+        'Unter deinen Stiefeln läuft ein kaum merkliches Zittern durch das Deck, als die Wayfarer ihre Leistung nachregelt.',
+        'Irgendwo hinter der Wand klackt ein Relais zweimal; danach bleibt nur das tiefe Summen des Reaktors.',
+        'Auf der Frontscheibe ziehen kalte Positionslichter vorbei und werfen für einen Moment lange Schatten über die Konsolen.'
+      ],
+      station:[
+        'Aus einem entfernten Korridor schwappt Stationslärm herüber: Schritte, eine Lautsprecherdurchsage, dann das Zischen eines Druckschotts.',
+        'Über dir flackert eine Werbetafel, während zwei Passanten ihr Gespräch abbrechen und einen kurzen Blick in deine Richtung werfen.',
+        'Die Luft riecht nach Ozondunst, heißem Metall und dem viel zu starken Gewürz eines nahen Garkiosks.'
+      ],
+      bar:[
+        'Hinter der Bar stellt jemand ein Glas etwas zu hart ab. Für einen Augenblick scheint der ganze Raum zuzuhören.',
+        'Eine Basslinie vibriert durch den Boden, doch an eurem Tisch ist die Stille plötzlich deutlicher als die Musik.',
+        'Am Nebentisch rückt ein Stuhl. Niemand sieht offen her, aber mehrere Leute hören sehr genau zu.'
+      ],
+      planet:[
+        'Violetter Staub zieht in dünnen Fahnen über den Boden und sammelt sich an den Kanten deines Anzugs.',
+        'Der Wind fährt durch die Ebene, ohne ein vertrautes Geräusch zu erzeugen; nur dein Atem bleibt als Rhythmus im Helm.',
+        'Weit über dir wandert ein blasser Mond durch den Himmel, während die Ruinen mit einem kaum sichtbaren Licht antworten.'
+      ],
+      ruins:[
+        'Die Lichtadern in den Wänden verändern ihre Helligkeit, als hätten sie deine Handlung registriert.',
+        'Für einen Moment ist da ein Ton knapp unterhalb dessen, was du bewusst hören kannst – eher Druck als Klang.',
+        'Dein Schatten liegt falsch auf dem Boden. Nur um wenige Zentimeter, aber genug, dass du es bemerkst.'
+      ]
+    };
+    const key=sceneBeats[loc?.type]?loc.type:(String(loc?.type||'').includes('ship')?'ship':String(loc?.type||'').includes('station')?'station':String(loc?.type||'').includes('ruin')?'ruins':null);
+    const beat=key?this.pick(sceneBeats[key],core):'';
+    let reaction='';
+    if(a.repeatCount>0){
+      const repeats=[
+        `Du hast denselben Ansatz hier bereits ${a.repeatCount}× versucht. Die Umgebung ist nicht statisch: Beobachter kennen inzwischen dein Muster und reagieren schneller darauf.`,
+        `Der Versuch kommt dir bekannt vor – und offenbar nicht nur dir. Nach ${a.repeatCount} früheren Anläufen wirkt die Situation angespannter; dieselbe Methode zieht inzwischen andere Aufmerksamkeit auf sich.`,
+        `Zum ${a.repeatCount+1}. Mal gehst du mit nahezu demselben Plan vor. Was beim ersten Versuch überraschend war, ist jetzt berechenbarer geworden. Die Welt merkt sich das.`
+      ];
+      reaction=this.pick(repeats,core);
+    } else {
+      const acknowledgements=[
+        `Du setzt nicht irgendeine Standardaktion um, sondern genau den Kern deiner Idee: **${esc(a.raw)}**`,
+        `Deine Absicht ist eindeutig genug, dass die Situation auf deine konkrete Formulierung reagiert: **${esc(a.raw)}**`,
+        `Du gehst den Moment auf deine Weise an – mit dem Plan, den du beschrieben hast: **${esc(a.raw)}**`
+      ];
+      reaction=this.pick(acknowledgements,core);
+    }
+    result.text=`${result.text}\n\n${beat}${beat?'\n\n':''}${reaction}`;
+    core.state.lastPlayerInput=a.raw;
+    core.state.lastNarrative=result.text;
+    return result;
+  }
   rollLine(c){const label={critical:'KRITISCHER ERFOLG',strong:'DEUTLICHER ERFOLG',success:'ERFOLG',fail:'FEHLSCHLAG',bad:'SCHWERER FEHLSCHLAG',fumble:'PATZER'}[c.degree];return `${label} · W20 ${c.roll} + ${c.mod} = ${c.total} gegen SG ${c.difficulty}`;}
 
   tryTravel(a,core){
@@ -119,9 +211,22 @@ export class ActionInterpreter{
     else if(a.intents.includes('talk')){stat='charisma';tags=a.tone==='deceptive'?['deception']:a.tone==='threatening'?['intimidation']:['persuasion','calm_social'];diff=12;}
     else if(a.intents.includes('attack')){stat='combat';tags=['combat'];diff=13;}
     else if(a.intents.includes('sneak')){stat='reflexes';tags=['stealth'];diff=12;}
+    else if(a.intents.includes('use')){stat='intelligence';tags=['analysis','improvise'];diff=12;}
     const c=core.check(stat,diff,tags);
-    const intentText=a.intents.length?`Dein Ansatz ist klar: ${a.intents.slice(0,3).join(', ')}.`:'Deine Formulierung ist ungewöhnlich genug, dass keine Standardroutine perfekt dazu passt.';
-    if(c.success){const afford=(loc.affordances||[])[Math.floor(Math.random()*(loc.affordances||['weiter beobachten']).length)];return this.out(`${this.rollLine(c)}\n\n${intentText} Du setzt deine Idee so um, wie du sie beschrieben hast: **${esc(a.raw)}**\n\nDie Welt reagiert darauf nicht mit einer vorgefertigten Antwort, sondern mit dem, was an diesem Ort plausibel ist. Dein Vorgehen verschafft dir einen kleinen Vorteil und lenkt deine Aufmerksamkeit auf etwas Verwertbares: **${afford}**. Es ist kein automatischer Storysprung, aber deine Handlung hat die Situation verändert und wird im Verlauf gespeichert.`,'success',c);}
-    return this.out(`${this.rollLine(c)}\n\n${intentText} Du versuchst genau das, was du beschrieben hast: **${esc(a.raw)}**\n\nDiesmal reicht der Ansatz nicht aus. Nicht weil die Eingabe „falsch“ wäre, sondern weil dir für diese konkrete Umsetzung entweder ein besserer Hebel, mehr Information oder ein günstigerer Moment fehlt. Die Situation bleibt offen; du kannst denselben Plan verändern, kombinieren oder einen völlig anderen Weg versuchen.`,'fail',c);
-  }
-}
+    const target=a.targets.length?`Dein Fokus liegt auf **${a.targets.join(', ')}**.`:'Du arbeitest mit dem, was die Umgebung gerade hergibt.';
+    const method=a.intents.length?`Aus deiner Formulierung lese ich vor allem **${a.intents.slice(0,3).join(' + ')}** heraus.`:'Dein Plan passt in keine einfache Standardschublade; deshalb zählt vor allem Wahrnehmung und Improvisation.';
+    const affordances=(loc.affordances||['die Umgebung genauer lesen','deinen Ansatz verändern','nach einem indirekten Weg suchen']);
+    const afford=this.pick(affordances,core);
+    const successConsequence=this.pick([
+      `Der unmittelbare Vorteil ist klein, aber konkret: **${afford}** wird plötzlich zu einer brauchbaren Möglichkeit.`,
+      `Etwas in der Situation verschiebt sich zu deinen Gunsten. Besonders **${afford}** fällt dir jetzt als nächster Hebel auf.`,
+      `Du erzwingst keinen Wundererfolg, aber du gewinnst Initiative. Der sinnvollste Anschluss wäre jetzt: **${afford}**.`
+    ],core);
+    const failConsequence=this.pick([
+      `Der Plan scheitert nicht an einer unsichtbaren Wand – er erzeugt Widerstand. **${afford}** könnte dir helfen, den gleichen Gedanken anders aufzuziehen.`,
+      `Du kommst nicht dort an, wo du wolltest, aber die Reaktion verrät dir etwas über die Lage. **${afford}** wirkt jetzt wichtiger als vorher.`,
+      `Die Welt blockiert dich nicht einfach; sie antwortet. Dein Vorgehen hat Aufmerksamkeit erzeugt, und **${afford}** könnte der bessere zweite Schritt sein.`
+    ],core);
+    const degreeFlavor={critical:'Alles greift für einen seltenen Moment ineinander. Dein Timing ist beinahe unverschämt gut.',strong:'Du bekommst nicht nur das gewünschte Ergebnis, sondern bemerkst dabei noch einen zusätzlichen Vorteil.',success:'Es funktioniert – nicht perfekt, aber gut genug, um die Lage wirklich zu verändern.',fail:'Für einen Moment sieht es aus, als könnte es funktionieren. Dann kippt ein Detail gegen dich.',bad:'Mehrere kleine Probleme treffen gleichzeitig zusammen und machen aus dem Versuch eine deutlich sichtbarere Sache als geplant.',fumble:'Der Moment bricht dir vollständig weg. Aus einem kleinen Risiko wird innerhalb von Sekunden ein neues Problem.'}[c.degree];
+    return this.out(`${this.rollLine(c)}\n\n${method} ${target}\n\n${degreeFlavor} ${c.success?successConsequence:failConsequence}\n\nDabei bleibt deine ursprüngliche Absicht erhalten: Die Engine behandelt deine Worte nicht als bloßes Stichwort, sondern als Beschreibung dessen, was dein Charakter tatsächlich versucht.`,c.success?'success':'fail',c);
+  }}

@@ -8,7 +8,7 @@ export class GameCore {
 
   freshState(){
     return {
-      version:'1.0.0',createdAt:new Date().toISOString(),player:null,location:'ship_bridge',previousLocation:null,
+      version:'1.0.1',createdAt:new Date().toISOString(),player:null,location:'ship_bridge',previousLocation:null,
       credits:850,hp:100,shield:65,xp:0,level:1,
       inventory:['compact_pistol','multitool','echo_artifact','medkit'],
       equipment:{weapon:'compact_pistol',armor:null,tool:'multitool'},
@@ -17,7 +17,7 @@ export class GameCore {
       reputation:{union:0,crimson:0,helix:0,freeSystems:0},
       npc:{kael:{trust:10,status:'Kontakt'},lyra:{trust:0,status:'Unbekannt'},mara:{trust:0,status:'Unbekannt'}},
       quests:{main_echo:{title:'Akt I · Das Signal',stage:0,status:'active',objectives:['Untersuche das unbekannte Artefakt auf der Wayfarer.']},side_engine:{title:'Flackernde Reserven',stage:0,status:'active',objectives:['Untersuche den instabilen Energiekoppler im Maschinenraum.']}},
-      memories:[],promises:[],history:[],log:[],turn:0,lastAction:null
+      memories:[],promises:[],history:[],log:[],turn:0,lastAction:null,lastPlayerInput:'',lastNarrative:'',lastSavedTurn:-1,rollHistory:[]
     };
   }
 
@@ -46,7 +46,25 @@ export class GameCore {
   remember(text,importance=50,type='event'){if(!this.state.memories.some(m=>m.text===text))this.state.memories.push({text,importance,type,turn:this.state.turn});}
   promise(text){this.state.promises.push({text,turn:this.state.turn,kept:null});this.remember(`Versprechen: ${text}`,80,'promise');}
   advanceTurn(){this.state.turn++;}
-  d20(){return Math.floor(Math.random()*20)+1;}
+  randomInt(min,max){
+    const range=max-min+1;
+    if(globalThis.crypto?.getRandomValues){
+      const a=new Uint32Array(1);globalThis.crypto.getRandomValues(a);return min+(a[0]%range);
+    }
+    return min+Math.floor(Math.random()*range);
+  }
+  d20(){
+    let roll=this.randomInt(1,20);
+    const last=this.state.rollHistory?.at(-1);
+    // Verhindert sichtbare Endlosschleifen identischer Würfe, ohne die Verteilung stark zu verfälschen.
+    if(last===roll){roll=(roll+this.randomInt(1,19)-1)%20+1;}
+    this.state.rollHistory=[...(this.state.rollHistory||[]),roll].slice(-40);
+    return roll;
+  }
+  repeatCount(raw){
+    const n=String(raw||'').trim().toLowerCase();
+    return this.state.history.filter(h=>String(h.raw||'').trim().toLowerCase()===n&&h.location===this.state.location).length;
+  }
 
   contextualBonus(tags=[]){
     let bonus=0; const reasons=[]; const bg=this.background();
@@ -60,9 +78,12 @@ export class GameCore {
 
   check(stat,difficulty,tags=[],extra=0){
     const value=this.state.player?.stats?.[stat]??1; const roll=this.d20();
+    const repeat=Math.max(0,Number(this.state.currentActionRepeat||0));
+    const repeatPenalty=Math.min(4,Math.floor(repeat/2));
+    const effectiveDifficulty=difficulty+repeatPenalty;
     const statMod=Math.floor((value-1)/2); const ctx=this.contextualBonus(tags); const mod=statMod+ctx.bonus+extra; const total=roll+mod;
-    const success=roll===20||(roll!==1&&total>=difficulty); const degree=roll===20?'critical':roll===1?'fumble':success?(total>=difficulty+5?'strong':'success'):(total<=difficulty-5?'bad':'fail');
-    return {stat,value,roll,statMod,contextBonus:ctx.bonus,reasons:ctx.reasons,mod,total,difficulty,success,degree,critical:roll===20,fumble:roll===1};
+    const success=roll===20||(roll!==1&&total>=effectiveDifficulty); const degree=roll===20?'critical':roll===1?'fumble':success?(total>=effectiveDifficulty+5?'strong':'success'):(total<=effectiveDifficulty-5?'bad':'fail');
+    return {stat,value,roll,statMod,contextBonus:ctx.bonus,reasons:ctx.reasons,mod,total,difficulty:effectiveDifficulty,baseDifficulty:difficulty,repeatPenalty,success,degree,critical:roll===20,fumble:roll===1};
   }
 
   travel(id){const target=this.data.world.locations[id]; if(!target)return false; const current=this.location(); if(current?.exits&&!current.exits.includes(id)){return false;} this.state.previousLocation=this.state.location;this.state.location=id;this.advanceTurn();this.pushLog(`ORT: ${target.name}`);return true;}

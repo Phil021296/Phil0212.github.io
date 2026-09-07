@@ -32,9 +32,9 @@ function creator(){
  function used(){return Object.values(stats).reduce((a,b)=>a+b,0)}
  function renderPoints(){const u=used(),left=30-u;const p=document.querySelector('#points');p.innerHTML=`<b>${left}</b><span>Punkte übrig</span>`;p.className='points '+(left===0?'ok':left<0?'bad':'');document.querySelector('#start').disabled=left!==0}
  sbox.onclick=e=>{const inc=e.target.dataset.inc,dec=e.target.dataset.dec;if(inc){if(stats[inc]<8&&used()<30)stats[inc]++;}if(dec){if(stats[dec]>1)stats[dec]--;}const k=inc||dec;if(k)document.querySelector(`[data-out="${k}"]`).value=stats[k];renderPoints()};renderPoints();
- document.querySelector('#start').onclick=()=>{if(positives.size!==2)return alert('Bitte genau 2 positive Eigenschaften wählen.');try{core.createCharacter({name:document.querySelector('#name').value,background:selectedBg,positiveTraits:[...positives],negativeTrait:negative,stats});saveLocal();game(introText());}catch(e){alert(e.message)}};
- document.querySelector('#loadCloud').onclick=async()=>{const state=await cloudSave.load();if(!state)return alert('Für diesen Spieler wurde noch kein Cloud-Spielstand gefunden oder die Cloud ist nicht erreichbar.');try{core.load(JSON.stringify(state));saveLocal();game('Der Cloud-Spielstand wurde aus der Datenbank geladen. Deine Entscheidungen, Beziehungen und Erinnerungen sind wieder da.')}catch(e){alert(e.message)}};
- document.querySelector('#loadLocal').onclick=()=>{const s=localStorage.getItem('voidbound-v1-save');if(!s)return alert('Kein lokaler Spielstand gefunden.');try{core.load(s);game('Der lokale Spielstand wurde geladen. Die Systeme der Wayfarer setzen dort wieder ein, wo du sie verlassen hast.')}catch(e){alert(e.message)}};
+ document.querySelector('#start').onclick=async()=>{if(positives.size!==2)return alert('Bitte genau 2 positive Eigenschaften wählen.');try{core.createCharacter({name:document.querySelector('#name').value,background:selectedBg,positiveTraits:[...positives],negativeTrait:negative,stats});core.state.lastNarrative=introText();saveLocal();game(core.state.lastNarrative);await persistCloud();}catch(e){alert(e.message)}};
+ document.querySelector('#loadCloud').onclick=async()=>{const state=await cloudSave.load();if(!state)return alert('Für diesen Spieler wurde noch kein Cloud-Spielstand gefunden oder die Cloud ist nicht erreichbar.');try{core.load(JSON.stringify(state));saveLocal();game(core.state.lastNarrative||'Der Cloud-Spielstand wurde aus der Datenbank geladen. Deine Entscheidungen, Beziehungen und Erinnerungen sind wieder da.')}catch(e){alert(e.message)}};
+ document.querySelector('#loadLocal').onclick=()=>{const s=localStorage.getItem('voidbound-v1-save');if(!s)return alert('Kein lokaler Spielstand gefunden.');try{core.load(s);game(core.state.lastNarrative||'Der lokale Spielstand wurde geladen. Die Systeme der Wayfarer setzen dort wieder ein, wo du sie verlassen hast.')}catch(e){alert(e.message)}};
  document.querySelector('#loadFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{core.load(await f.text());saveLocal();game('Spielstand geladen. Deine Entscheidungen, Beziehungen und Erinnerungen wurden wiederhergestellt.')}catch(err){alert(err.message)}};
 }
 
@@ -57,12 +57,22 @@ function game(lastText){
  <aside class="left-panel glass"><div class="portrait">${html(p.name[0]?.toUpperCase()||'?')}</div><h2>${html(p.name)}</h2><span class="muted">${html(bg?.name)}</span><div class="meters"><label>Gesundheit <b>${core.state.hp}%</b><div><i style="width:${core.state.hp}%"></i></div></label><label>Schild <b>${core.state.shield}%</b><div><i style="width:${core.state.shield}%"></i></div></label></div><div class="navbuttons"><button data-panel="char">CHARAKTER</button><button data-panel="inventory">INVENTAR</button><button data-panel="quests">MISSIONEN</button><button data-panel="crew">CREW</button><button data-panel="ship">SCHIFF</button><button data-panel="map">STERNENKARTE</button><button data-panel="rep">REPUTATION</button><button data-panel="memory">ERINNERUNGEN</button><button data-panel="help">SPIELHILFE</button><button id="save">SAVE-DATEI</button></div></aside>
  <section class="narrative glass"><div class="location-tag">${loc.zone.toUpperCase()} // ${loc.type.toUpperCase()}</div><h1>${html(loc.name)}</h1><p class="locdesc">${html(loc.desc)}</p><div id="result" class="result">${story(lastText||'Was möchtest du tun?')}</div><div class="prompt"><label>DEINE HANDLUNG – FREIE TEXTEINGABE</label><textarea id="action" placeholder="z. B. Ich beobachte die Söldner erst, tue dann so als wäre ich Wartungstechniker und versuche unbemerkt hinter Kael zu gelangen."></textarea><div class="prompt-bottom"><span>Das Spiel wertet Absicht, Ziel, Methode und Ton deiner Eingabe aus.</span><button id="act" class="primary">AKTION AUSFÜHREN</button></div></div></section>
  <aside class="right-panel glass"><h3>SITUATION</h3><div class="chips">${(loc.affordances||[]).map(x=>`<span>${html(x)}</span>`).join('')}</div><h3>AKT I · DAS SIGNAL</h3>${questSummary()}<h3>LETZTE EREIGNISSE</h3><div class="mini-log">${core.state.log.slice(0,6).map(x=>`<span>${html(x.text)}</span>`).join('')}</div></aside>
- <footer>World State aktiv · ${core.state.memories.length} Erinnerungen · ${core.state.history.length} gespeicherte Handlungen · Lokal + Cloud Autosave · Spieler-ID ${html(cloudSave.playerId?.slice(0,8)||'offline')}</footer></main><div id="modal"></div>`;
+ <footer>World State aktiv · ${core.state.memories.length} Erinnerungen · ${core.state.history.length} gespeicherte Handlungen · Sofort-Autosave · Spieler-ID ${html(cloudSave.playerId?.slice(0,8)||'offline')} · <span id="save-status">${cloudSave.online?'Cloud verbunden':'lokaler Fallback'}</span></footer></main><div id="modal"></div>`;
  document.querySelector('#act').onclick=act;document.querySelector('#action').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();act()}};document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>showPanel(b.dataset.panel));document.querySelector('#save').onclick=downloadSave;
 }
 function questSummary(){const q=core.state.quests.main_echo;return `<p><b>${html(q.title)}</b></p>${q.objectives.map(x=>`<p class="objective">◆ ${html(x)}</p>`).join('')}`}
-function act(){const ta=document.querySelector('#action');const text=ta.value.trim();const r=interpreter.interpret(text,core);game(r.text)}
-function saveLocal(){if(core.state.player){localStorage.setItem('voidbound-v1-save',core.serialize());cloudSave.queueSave(core.state)}}
+async function act(){
+ const ta=document.querySelector('#action');const text=ta.value.trim();if(!text)return;
+ const button=document.querySelector('#act');button.disabled=true;button.textContent='WELT REAGIERT …';
+ const r=interpreter.interpret(text,core);
+ core.state.lastPlayerInput=text;core.state.lastNarrative=r.text;
+ saveLocal();
+ game(r.text);
+ await persistCloud();
+ const status=document.querySelector('#save-status');if(status)status.textContent=cloudSave.online?`Cloud gespeichert · Revision ${cloudSave.lastRevision}`:'Cloud nicht erreichbar · lokal gespeichert';
+}
+function saveLocal(){if(core.state.player)localStorage.setItem('voidbound-v1-save',core.serialize())}
+async function persistCloud(){if(!core.state.player)return false;saveLocal();const ok=await cloudSave.save(core.state);if(ok)core.state.lastSavedTurn=core.state.turn;return ok;}
 function downloadSave(){const blob=new Blob([core.serialize()],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`voidbound-v1-${core.state.player.name}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 function showPanel(type){const m=document.querySelector('#modal'),p=core.state.player;let title='',body='';
@@ -75,6 +85,24 @@ function showPanel(type){const m=document.querySelector('#modal'),p=core.state.p
  if(type==='rep'){title='Reputation';const names={union:'Terranische Union',crimson:'Crimson Fleet',helix:'Helix Corporation',freeSystems:'Freie Systeme'};body=Object.entries(core.state.reputation).map(([k,v])=>`<div class="rep-row"><span>${names[k]||k}</span><b>${v>0?'+':''}${v}</b></div>`).join('')}
  if(type==='memory'){title='Erinnerungen & Konsequenzen';body=core.state.memories.length?[...core.state.memories].sort((a,b)=>b.importance-a.importance).map(x=>`<div class="memory"><b>${x.importance}</b><span>${html(x.text)}</span><small>${html(x.type)} · Runde ${x.turn}</small></div>`).join(''):'<p>Noch keine prägenden Erinnerungen.</p>'}
  if(type==='help'){title='So spielst du';body=`<p>Du musst keine Antwortoption anklicken. Schreibe natürlich, was dein Charakter tun oder sagen soll. Je konkreter deine Eingabe, desto genauer kann das Regelsystem Methode und Ziel bestimmen.</p><div class="item"><b>Beispiel:</b><span>„Ich beobachte erst, ob die Wachen nervös wirken. Dann behaupte ich ruhig, ich sei von der Wartung und müsse hinter ihnen an das Terminal.“</span></div><p>Die Engine nutzt deine Attribute, Herkunft, Eigenschaften, Ausrüstung, den Ort und vorherige Entscheidungen. Ein Fehlschlag beendet eine Idee nicht automatisch – du kannst sie verändern oder kombinieren.</p>`}
- m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button><div class="eyebrow">VOIDBOUND DATABASE</div><h1>${title}</h1>${body}</div></div>`;document.querySelector('#close').onclick=()=>m.innerHTML='';m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const id=b.dataset.go;if(id==='nereid_surface'&&!core.state.flags.nereidUnlocked)return;core.forceTravel(id);m.innerHTML='';game(`Die Navigation bestätigt den Kurs. ${core.location().desc}`)})
+ m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button><div class="eyebrow">VOIDBOUND DATABASE</div><h1>${title}</h1>${body}</div></div>`;document.querySelector('#close').onclick=()=>m.innerHTML='';m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const id=b.dataset.go;if(id==='nereid_surface'&&!core.state.flags.nereidUnlocked)return;core.forceTravel(id);core.state.lastNarrative=`Die Navigation bestätigt den Kurs. ${core.location().desc}`;m.innerHTML='';game(core.state.lastNarrative);persistCloud()})
 }
-creator();
+async function bootstrap(){
+  await cloudSave.init();
+  let cloudState=null,localState=null;
+  try{cloudState=await cloudSave.load();}catch{}
+  try{const raw=localStorage.getItem('voidbound-v1-save');if(raw)localState=JSON.parse(raw);}catch{}
+  const cloudTurn=Number(cloudState?.turn??-1),localTurn=Number(localState?.turn??-1);
+  const chosen=localTurn>cloudTurn?localState:cloudState||localState;
+  if(chosen?.player){
+    try{
+      core.load(JSON.stringify(chosen));
+      saveLocal();
+      if(localTurn>cloudTurn)await persistCloud();
+      game(core.state.lastNarrative||`Du kehrst in Runde ${core.state.turn} zu ${core.location().name} zurück. Dein letzter Spielstand wurde automatisch wiederhergestellt.`);
+      return;
+    }catch(error){console.warn('Autosave konnte nicht geladen werden:',error);}
+  }
+  creator();
+}
+bootstrap();
