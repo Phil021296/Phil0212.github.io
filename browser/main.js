@@ -6,6 +6,7 @@ const [backgrounds,traits,world,items,crew]=await Promise.all([
   fetch('../data/backgrounds.json').then(r=>r.json()),fetch('../data/traits.json').then(r=>r.json()),fetch('../data/world.json').then(r=>r.json()),fetch('../data/items.json').then(r=>r.json()),fetch('../data/crew.json').then(r=>r.json())
 ]);
 const core=new GameCore({backgrounds,traits,world,items,crew});const interpreter=new ActionInterpreter();const app=document.querySelector('#app');
+let gmEnabled=false,busy=false;
 const STAT_LABEL={strength:'Stärke',reflexes:'Reflexe',intelligence:'Intelligenz',perception:'Wahrnehmung',charisma:'Charisma',willpower:'Willenskraft',tech:'Technik',combat:'Kampf'};
 const DEFAULT_STATS={strength:4,reflexes:4,intelligence:4,perception:4,charisma:4,willpower:4,tech:3,combat:3};
 const statLabel=k=>STAT_LABEL[k]||k;
@@ -15,7 +16,7 @@ const story=s=>html(s).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n
 function creator(){
  let selectedBg=backgrounds[0].id, positives=new Set([traits.positive[0].id,traits.positive[1].id]),negative=traits.negative[0].id,stats={...DEFAULT_STATS};
  app.innerHTML=`<div class="creator-shell"><section class="creator-card">
- <div class="eyebrow">VOIDBOUND // ECHOES OF THE FALLEN // VERSION 1.0</div><h1>Wer wirst du im Void?</h1>
+ <div class="eyebrow">VOIDBOUND // ECHOES OF THE FALLEN // VERSION 1.1 · AI GAME MASTER</div><h1>Wer wirst du im Void?</h1>
  <p class="lead">Deine Werte sind begrenzt. Du besitzt insgesamt <b>30 Attributpunkte</b>. Herkunft und Eigenschaften geben situative Vor- und Nachteile, verändern diese 30 Punkte aber nicht.</p>
  <label class="name-label">Name<input id="name" value="Rook" maxlength="24"></label>
  <div class="grid2"><div><h3>Herkunft</h3><div id="bgs" class="cards"></div></div><div><h3>Eigenschaften</h3><div id="traits"></div></div></div>
@@ -53,56 +54,67 @@ function sceneArt(type){
 function game(lastText){
  const loc=core.location(),p=core.state.player;const bg=core.background();saveLocal();
  app.innerHTML=`<main class="game-shell scene-${loc.type}">${sceneArt(loc.type)}
- <header><div><span class="logo">VOIDBOUND</span><small>ECHOES OF THE FALLEN · v1.0</small></div><div class="topstats"><span>◉ ${core.state.credits} cr</span><span>HP ${core.state.hp}%</span><span>SH ${core.state.shield}%</span><span>LV ${core.state.level}</span></div></header>
+ <header><div><span class="logo">VOIDBOUND</span><small>ECHOES OF THE FALLEN · v1.1</small></div><div class="topstats"><span>◉ ${core.state.credits} cr</span><span>HP ${core.state.hp}%</span><span>SH ${core.state.shield}%</span><span>LV ${core.state.level}</span></div></header>
  <aside class="left-panel glass"><div class="portrait">${html(p.name[0]?.toUpperCase()||'?')}</div><h2>${html(p.name)}</h2><span class="muted">${html(bg?.name)}</span><div class="meters"><label>Gesundheit <b>${core.state.hp}%</b><div><i style="width:${core.state.hp}%"></i></div></label><label>Schild <b>${core.state.shield}%</b><div><i style="width:${core.state.shield}%"></i></div></label></div><div class="navbuttons"><button data-panel="char">CHARAKTER</button><button data-panel="inventory">INVENTAR</button><button data-panel="quests">MISSIONEN</button><button data-panel="crew">CREW</button><button data-panel="ship">SCHIFF</button><button data-panel="map">STERNENKARTE</button><button data-panel="rep">REPUTATION</button><button data-panel="memory">ERINNERUNGEN</button><button data-panel="help">SPIELHILFE</button><button id="save">SAVE-DATEI</button></div></aside>
- <section class="narrative glass"><div class="location-tag">${loc.zone.toUpperCase()} // ${loc.type.toUpperCase()}</div><h1>${html(loc.name)}</h1><p class="locdesc">${html(loc.desc)}</p><div id="result" class="result">${story(lastText||'Was möchtest du tun?')}</div><div class="prompt"><label>DEINE HANDLUNG – FREIE TEXTEINGABE</label><textarea id="action" placeholder="z. B. Ich beobachte die Söldner erst, tue dann so als wäre ich Wartungstechniker und versuche unbemerkt hinter Kael zu gelangen."></textarea><div class="prompt-bottom"><span>Das Spiel wertet Absicht, Ziel, Methode und Ton deiner Eingabe aus.</span><button id="act" class="primary">AKTION AUSFÜHREN</button></div></div></section>
+ <section class="narrative glass"><div class="location-tag">${loc.zone.toUpperCase()} // ${loc.type.toUpperCase()}</div><h1>${html(loc.name)}</h1><p class="locdesc">${html(loc.desc)}</p><div id="result" class="result">${story(lastText||'Was möchtest du tun?')}${resolutionHtml()}</div><div class="prompt"><p class="muted">${gmEnabled?"KI-Spielleiter · Online":"Klassischer Offline-Modus · regelbasierte Antworten"}</p><label>DEINE HANDLUNG – FREIE TEXTEINGABE</label><textarea id="action" placeholder="z. B. Ich beobachte die Söldner erst, tue dann so als wäre ich Wartungstechniker und versuche unbemerkt hinter Kael zu gelangen."></textarea><div class="prompt-bottom"><span>Das Spiel wertet Absicht, Ziel, Methode und Ton deiner Eingabe aus.</span><button id="act" class="primary">AKTION AUSFÜHREN</button></div></div></section>
  <aside class="right-panel glass"><h3>SITUATION</h3><div class="chips">${(loc.affordances||[]).map(x=>`<span>${html(x)}</span>`).join('')}</div><h3>AKT I · DAS SIGNAL</h3>${questSummary()}<h3>LETZTE EREIGNISSE</h3><div class="mini-log">${core.state.log.slice(0,6).map(x=>`<span>${html(x.text)}</span>`).join('')}</div></aside>
  <footer>World State aktiv · ${core.state.memories.length} Erinnerungen · ${core.state.history.length} gespeicherte Handlungen · Sofort-Autosave · Spieler-ID ${html(cloudSave.playerId?.slice(0,8)||'offline')} · <span id="save-status">${cloudSave.online?'Cloud verbunden':'lokaler Fallback'}</span></footer></main><div id="modal"></div>`;
  document.querySelector('#act').onclick=act;document.querySelector('#action').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();act()}};document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>showPanel(b.dataset.panel));document.querySelector('#save').onclick=downloadSave;
 }
 function questSummary(){const q=core.state.quests.main_echo;return `<p><b>${html(q.title)}</b></p>${q.objectives.map(x=>`<p class="objective">◆ ${html(x)}</p>`).join('')}`}
-async function act(){
- const ta=document.querySelector('#action');const text=ta.value.trim();if(!text)return;
+async function act(forcedInput){
+ if(busy)return;
+ const ta=document.querySelector('#action');const text=typeof forcedInput==='string'?forcedInput:ta.value.trim();if(!text)return;
+ busy=true;
  const button=document.querySelector('#act');button.disabled=true;button.textContent='WELT REAGIERT …';
- const r=interpreter.interpret(text,core);
- core.state.lastPlayerInput=text;core.state.lastNarrative=r.text;
- saveLocal();
- game(r.text);
- await persistCloud();
- const status=document.querySelector('#save-status');if(status)status.textContent=cloudSave.online?`Cloud gespeichert · Revision ${cloudSave.lastRevision}`:'Cloud nicht erreichbar · lokal gespeichert';
+ try{
+  if(gmEnabled){
+   if(!core.state.gameMaster&&!localStorage.getItem(`voidbound-pending-turn-${cloudSave.playerId}`)&&!(await persistCloud()))throw new Error('Der Ausgangsspielstand konnte nicht gespeichert werden. Bitte erneut versuchen.');
+   const state=await cloudSave.action(text);core.load(JSON.stringify(state));saveLocal();game(core.state.lastNarrative);
+  }else{
+   if(core.state.gameMaster)throw new Error('Dieser KI-Spielstand benötigt den KI-Server. Der Spielstand bleibt erhalten.');
+   const r=interpreter.interpret(text,core);core.state.lastPlayerInput=text;core.state.lastNarrative=r.text;
+   saveLocal();game(r.text);await persistCloud();
+  }
+ }catch(error){alert(error.message);}
+ finally{busy=false;const b=document.querySelector('#act');if(b){b.disabled=false;b.textContent='AKTION AUSFÜHREN';}}
 }
 function saveLocal(){if(core.state.player)localStorage.setItem('voidbound-v1-save',core.serialize())}
-async function persistCloud(){if(!core.state.player)return false;saveLocal();const ok=await cloudSave.save(core.state);if(ok)core.state.lastSavedTurn=core.state.turn;return ok;}
+async function persistCloud(){if(!core.state.player)return false;if(core.state.gameMaster){saveLocal();return true;}saveLocal();const ok=await cloudSave.save(core.state);if(ok)core.state.lastSavedTurn=core.state.turn;return ok;}
 function downloadSave(){const blob=new Blob([core.serialize()],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`voidbound-v1-${core.state.player.name}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 function showPanel(type){const m=document.querySelector('#modal'),p=core.state.player;let title='',body='';
  if(type==='char'){title='Charakter';body=`<div class="char-head"><div class="portrait big">${html(p.name[0])}</div><div><h2>${html(p.name)}</h2><p>${html(core.background().name)}</p></div></div><div class="sheet">${Object.entries(p.stats).map(([k,v])=>`<div><span>${statLabel(k)}</span><b>${v}</b></div>`).join('')}</div><h3>Eigenschaften</h3><div class="item"><b>+</b>${p.positiveTraits.map(id=>core.trait(id)?.name).join(' · ')}</div><div class="item"><b>–</b>${core.trait(p.negativeTrait)?.name}</div><p class="muted">Attributsumme: ${Object.values(p.stats).reduce((a,b)=>a+b,0)} / 30</p>`}
  if(type==='inventory'){title='Inventar';body=core.state.inventory.map(id=>{const i=core.item(id);return `<div class="item"><b>${html(i.name)}</b><span>${html(i.desc)}</span><small>${html(i.type)}</small></div>`}).join('')}
  if(type==='quests'){title='Missionen';body=Object.values(core.state.quests).map(q=>`<div class="quest"><b>${html(q.title)}</b><em>${html(q.status)}</em>${q.objectives.map(o=>`<p>◆ ${html(o)}</p>`).join('')}</div>`).join('')}
- if(type==='crew'){title='Crew & Kontakte';body=crew.map(c=>{const s=core.state.npc[c.id]||{};return `<div class="crew-card"><b>${html(c.name)}</b><small>${html(c.role)}</small><p>${html(c.desc)}</p><div>Vertrauen <strong>${s.trust??c.trust}</strong> · ${html(s.status||c.status)}</div></div>`}).join('')}
+ if(type==='crew'){title='Crew & Kontakte';body=crew.map(c=>{const s=core.state.npc[c.id]||{};return `<div class="crew-card"><b>${html(c.name)}</b><small>${html(c.role)}</small><p>${html(c.desc)}</p><div>Vertrauen <strong>${s.trust??c.trust}</strong> · ${html(s.status||c.status)}</div><p>Respekt ${s.respect??0} · Ärger ${s.anger??0} · Angst ${s.fear??0}</p><p>${html(s.mood||"abwartend")}</p>${(s.shortTerm||[]).slice(-3).map(x=>`<p class="muted">${html(x.input)} — ${html(x.outcome)}</p>`).join("")}</div>`}).join('')}
  if(type==='ship'){title=core.state.ship.name;const s=core.state.ship;body=`<div class="ship-grid">${[['Hülle',s.hull],['Schild',core.state.shield],['Treibstoff',s.fuel],['Reaktor',s.reactorStability]].map(([n,v])=>`<div><span>${n}</span><b>${v}%</b><i><u style="width:${v}%"></u></i></div>`).join('')}</div><h3>Module</h3>${s.modules.map(x=>`<div class="item">${html(x)}</div>`).join('')}<p>Frachtraum: ${s.cargo}/${s.cargoMax}</p>`}
  if(type==='map'){title='Sternenkarte';body=`<div class="map"><button data-go="ship_bridge">VSS WAYFARER</button><button data-go="helios_docks">HELIOS-9</button><button data-go="nereid_surface" ${core.state.flags.nereidUnlocked?'':'disabled'}>NEREID IV ${core.state.flags.nereidUnlocked?'':'· GESPERRT'}</button></div><p class="muted">Direkte Fernreisen sind nur möglich, wenn das Ziel storyseitig bekannt ist. Innerhalb eines Ortes bewegst du dich über deine freie Texteingabe.</p>`}
  if(type==='rep'){title='Reputation';const names={union:'Terranische Union',crimson:'Crimson Fleet',helix:'Helix Corporation',freeSystems:'Freie Systeme'};body=Object.entries(core.state.reputation).map(([k,v])=>`<div class="rep-row"><span>${names[k]||k}</span><b>${v>0?'+':''}${v}</b></div>`).join('')}
  if(type==='memory'){title='Erinnerungen & Konsequenzen';body=core.state.memories.length?[...core.state.memories].sort((a,b)=>b.importance-a.importance).map(x=>`<div class="memory"><b>${x.importance}</b><span>${html(x.text)}</span><small>${html(x.type)} · Runde ${x.turn}</small></div>`).join(''):'<p>Noch keine prägenden Erinnerungen.</p>'}
  if(type==='help'){title='So spielst du';body=`<p>Du musst keine Antwortoption anklicken. Schreibe natürlich, was dein Charakter tun oder sagen soll. Je konkreter deine Eingabe, desto genauer kann das Regelsystem Methode und Ziel bestimmen.</p><div class="item"><b>Beispiel:</b><span>„Ich beobachte erst, ob die Wachen nervös wirken. Dann behaupte ich ruhig, ich sei von der Wartung und müsse hinter ihnen an das Terminal.“</span></div><p>Die Engine nutzt deine Attribute, Herkunft, Eigenschaften, Ausrüstung, den Ort und vorherige Entscheidungen. Ein Fehlschlag beendet eine Idee nicht automatisch – du kannst sie verändern oder kombinieren.</p>`}
- m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button><div class="eyebrow">VOIDBOUND DATABASE</div><h1>${title}</h1>${body}</div></div>`;document.querySelector('#close').onclick=()=>m.innerHTML='';m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const id=b.dataset.go;if(id==='nereid_surface'&&!core.state.flags.nereidUnlocked)return;core.forceTravel(id);core.state.lastNarrative=`Die Navigation bestätigt den Kurs. ${core.location().desc}`;m.innerHTML='';game(core.state.lastNarrative);persistCloud()})
+ m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button><div class="eyebrow">VOIDBOUND DATABASE</div><h1>${title}</h1>${body}</div></div>`;document.querySelector('#close').onclick=()=>m.innerHTML='';m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(busy)return;const id=b.dataset.go;if(gmEnabled||core.state.gameMaster){m.innerHTML="";act(`Ich reise nach ${core.data.world.locations[id].name}.`);return;}if(id==='nereid_surface'&&!core.state.flags.nereidUnlocked)return;core.forceTravel(id);core.state.lastNarrative=`Die Navigation bestätigt den Kurs. ${core.location().desc}`;m.innerHTML='';game(core.state.lastNarrative);persistCloud()})
 }
 async function bootstrap(){
+  try{gmEnabled=Boolean((await (await fetch('/api/gm')).json()).enabled);}catch{}
   await cloudSave.init();
   let cloudState=null,localState=null;
   try{cloudState=await cloudSave.load();}catch{}
   try{const raw=localStorage.getItem('voidbound-v1-save');if(raw)localState=JSON.parse(raw);}catch{}
   const cloudTurn=Number(cloudState?.turn??-1),localTurn=Number(localState?.turn??-1);
-  const chosen=localTurn>cloudTurn?localState:cloudState||localState;
+  const chosen=cloudState?.gameMaster?cloudState:localTurn>cloudTurn?localState:cloudState||localState;
   if(chosen?.player){
     try{
       core.load(JSON.stringify(chosen));
       saveLocal();
-      if(localTurn>cloudTurn)await persistCloud();
+      if(localTurn>cloudTurn&&!core.state.gameMaster)await persistCloud();
       game(core.state.lastNarrative||`Du kehrst in Runde ${core.state.turn} zu ${core.location().name} zurück. Dein letzter Spielstand wurde automatisch wiederhergestellt.`);
+      const pending=JSON.parse(localStorage.getItem(`voidbound-pending-turn-${cloudSave.playerId}`)||'null');if(pending)document.querySelector('#action').value=pending.input;
       return;
     }catch(error){console.warn('Autosave konnte nicht geladen werden:',error);}
   }
   creator();
 }
 bootstrap();
+
+function resolutionHtml(){const r=core.state.lastResolution;if(!r)return "";return `<details><summary>Regelergebnis</summary>${story(r.events.join("\n"))}${story(r.rolls.map(x=>`W20: ${x.roll} + ${x.mod} = ${x.total} gegen ${x.difficulty} (${statLabel(x.stat)}) – ${x.success?"Erfolg":"Fehlschlag"}`).join("\n"))}</details>`;}

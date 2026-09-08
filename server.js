@@ -3,6 +3,7 @@ import pg from 'pg';
 import crypto from 'crypto';
 import path from 'path';
 import {fileURLToPath} from 'url';
+import {mountActions} from './backend/actionRoutes.js';
 
 const {Pool}=pg;
 const __filename=fileURLToPath(import.meta.url);
@@ -52,6 +53,12 @@ async function initDatabase(){
     CREATE INDEX IF NOT EXISTS idx_players_last_seen ON players(last_seen_at DESC);
     ALTER TABLE savegames ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0;
     CREATE INDEX IF NOT EXISTS idx_savegames_updated ON savegames(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS gm_requests (
+      player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      request_id VARCHAR(80) NOT NULL,
+      input TEXT NOT NULL,
+      PRIMARY KEY(player_id,request_id)
+    );
   `);
 }
 
@@ -113,6 +120,9 @@ app.put('/api/save',authenticate,async(req,res)=>{
   const client=await pool.connect();
   try{
     await client.query('BEGIN');
+    await client.query('SELECT id FROM players WHERE id=$1 FOR UPDATE',[req.playerId]);
+    const existing=await client.query('SELECT state FROM savegames WHERE player_id=$1',[req.playerId]);
+    if(existing.rows[0]?.state?.gameMaster){await client.query('ROLLBACK');return res.status(409).json({error:'server_authoritative_save'});}
     await client.query('UPDATE players SET display_name=$1,game_version=$2,last_seen_at=NOW() WHERE id=$3',[displayName,gameVersion,req.playerId]);
     const saved=await client.query(`
       INSERT INTO savegames(player_id,game_version,state,updated_at,revision)
@@ -133,11 +143,9 @@ app.put('/api/save',authenticate,async(req,res)=>{
   }finally{client.release();}
 });
 
-app.use(express.static(__dirname,{extensions:['html']}));
-app.use((req,res,next)=>{
-  if(req.path.startsWith('/api/'))return next();
-  res.sendFile(path.join(__dirname,'index.html'));
-});
+mountActions(app,pool,authenticate);
+for(const dir of ['browser','core','data'])app.use('/'+dir,express.static(path.join(__dirname,dir)));
+app.get('/',(_req,res)=>res.sendFile(path.join(__dirname,'index.html')));
 
 initDatabase().then(()=>{
   app.listen(PORT,'0.0.0.0',()=>console.log(`VOIDBOUND läuft auf Port ${PORT}`));

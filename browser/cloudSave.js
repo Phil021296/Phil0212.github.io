@@ -13,11 +13,17 @@ class CloudSave {
   }
   headers(){return {'Content-Type':'application/json','x-player-id':this.playerId||'','Authorization':`Bearer ${this.playerToken||''}`};}
   async init(){
+    if(this.initializing)return this.initializing;
+    this.initializing=this.initializePlayer();
+    try{return await this.initializing;}finally{this.initializing=null;}
+  }
+  async initializePlayer(){
     try{
       if(this.playerId&&this.playerToken){
         const r=await fetch('/api/player',{headers:this.headers(),cache:'no-store'});
         if(r.ok){this.ready=true;this.online=true;return true;}
         if(r.status===401){localStorage.removeItem(ID_KEY);localStorage.removeItem(TOKEN_KEY);this.playerId=null;this.playerToken=null;}
+        else throw new Error('player_check_failed');
       }
       const r=await fetch('/api/player',{method:'POST'});
       if(!r.ok)throw new Error('player_create_failed');
@@ -29,11 +35,11 @@ class CloudSave {
   }
   async save(state){
     if(!state?.player)return false;
-    if(!this.ready&&!(await this.init()))return false;
     // Snapshot verhindert, dass sich der Zustand während eines laufenden Requests weiter verändert.
     const snapshot=JSON.parse(JSON.stringify(state));
     const doSave=async()=>{
       try{
+        if(!this.ready&&!(await this.init()))return false;
         const r=await fetch('/api/save',{method:'PUT',headers:this.headers(),body:JSON.stringify({state:snapshot}),cache:'no-store'});
         if(!r.ok)throw new Error(`save_${r.status}`);
         const data=await r.json();
@@ -44,6 +50,24 @@ class CloudSave {
     // Speichervorgänge strikt nacheinander ausführen. Dadurch kann ein älterer Request nie einen neueren überschreiben.
     this.inFlight=this.inFlight.then(doSave,doSave);
     return this.inFlight;
+  }
+  async action(input){
+    await this.inFlight;
+    if(!this.ready&&!(await this.init()))throw new Error('Cloud-Verbindung fehlt.');
+    const key=`voidbound-pending-turn-${this.playerId}`;
+    let pending=JSON.parse(localStorage.getItem(key)||'null');
+    if(pending&&pending.input!==input)throw new Error('Ein Spielzug ist noch unbestätigt. Sende zuerst die vorige Eingabe erneut oder lade die Seite neu.');
+    pending??={input,requestId:crypto.randomUUID(),revision:this.lastRevision};
+    localStorage.setItem(key,JSON.stringify(pending));
+    const r=await fetch('/api/action',{method:'POST',headers:this.headers(),body:JSON.stringify(pending),signal:AbortSignal.timeout(110000)});
+    if(!r.ok){
+      const data=await r.json().catch(()=>({}));
+      if(r.status===409){localStorage.removeItem(key);throw new Error('Der Cloud-Spielstand wurde geändert. Bitte die Seite neu laden.');}
+      if(data.error==='ai_not_configured')throw new Error('Der KI-Spielleiter ist auf dem Server noch nicht eingerichtet.');
+      throw new Error('Spielzug nicht bestätigt. Bitte dieselbe Eingabe erneut senden; sie wird nicht doppelt ausgeführt.');
+    }
+    const data=await r.json();this.online=true;this.lastRevision=data.revision;this.lastSavedAt=data.savedAt;
+    localStorage.removeItem(key);return data.state;
   }
   async load(){
     if(!this.ready&&!(await this.init()))return null;

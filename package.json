@@ -1,10 +1,13 @@
 {
   "name": "voidbound-browser",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "preview": "node tools/preview.js",
+    "test": "node --test",
+    "verify": "node --check server.js && node --check browser/main.js && node --test"
   },
   "engines": {
     "node": ">=20"

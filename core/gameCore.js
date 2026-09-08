@@ -32,7 +32,8 @@ export class GameCore {
   createCharacter(c){
     const validation=this.validateStats(c.stats); if(!validation.ok) throw new Error(validation.error);
     if(!this.data.backgrounds.some(b=>b.id===c.background)) throw new Error('Ungültige Herkunft.');
-    if(!Array.isArray(c.positiveTraits)||c.positiveTraits.length!==2) throw new Error('Wähle genau zwei positive Eigenschaften.');
+    if(!Array.isArray(c.positiveTraits)||new Set(c.positiveTraits).size!==2||c.positiveTraits.length!==2||c.positiveTraits.some(id=>!this.data.traits.positive.some(t=>t.id===id))) throw new Error('Wähle genau zwei unterschiedliche positive Eigenschaften.');
+    if(!this.data.traits.negative.some(t=>t.id===c.negativeTrait))throw new Error('Wähle eine gültige negative Eigenschaft.');
     this.state.player={name:(c.name||'Rook').trim().slice(0,24)||'Rook',background:c.background,positiveTraits:[...c.positiveTraits],negativeTrait:c.negativeTrait,stats:{...c.stats}};
     this.remember(`Du hast deine Reise als ${this.background()?.name||'Unbekannter'} begonnen.`,55,'origin');
     this.pushLog(`CHARAKTER ERSTELLT: ${this.state.player.name}`); return this.state;
@@ -49,15 +50,14 @@ export class GameCore {
   randomInt(min,max){
     const range=max-min+1;
     if(globalThis.crypto?.getRandomValues){
-      const a=new Uint32Array(1);globalThis.crypto.getRandomValues(a);return min+(a[0]%range);
+      const a=new Uint32Array(1),limit=Math.floor(4294967296/range)*range;
+      do{globalThis.crypto.getRandomValues(a);}while(a[0]>=limit);
+      return min+(a[0]%range);
     }
     return min+Math.floor(Math.random()*range);
   }
   d20(){
-    let roll=this.randomInt(1,20);
-    const last=this.state.rollHistory?.at(-1);
-    // Verhindert sichtbare Endlosschleifen identischer Würfe, ohne die Verteilung stark zu verfälschen.
-    if(last===roll){roll=(roll+this.randomInt(1,19)-1)%20+1;}
+    const roll=this.randomInt(1,20);
     this.state.rollHistory=[...(this.state.rollHistory||[]),roll].slice(-40);
     return roll;
   }

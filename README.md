@@ -1,12 +1,14 @@
-# VOIDBOUND: Echoes of the Fallen — Browser v1.0
+# VOIDBOUND: Echoes of the Fallen — v1.1 AI Game Master
+
+Neu: serverseitige KI-Interpretation → Regelengine → dynamische Erzählung → atomarer Cloud-Spielstand. Einrichtung, Architektur und ehrlicher Prüfstatus: [AI Game Master](docs/AI_GAME_MASTER.md). Ohne KI-Konfiguration bleibt die lokale Vorschau als klassischer Modus verfügbar. Die folgenden v1.0/v1.0.1-Abschnitte beschreiben den übernommenen Ausgangsstand.
 
 Browserbasierter Sci-Fi-RPG-Vertical-Slice mit freier Texteingabe und Unity-portabler Datenstruktur.
 
 ## Start lokal
-Unter Windows `start.bat` ausführen oder im Projektordner einen statischen Webserver starten, z. B. `python -m http.server 8000`.
+Unter Windows `start.bat` ausführen oder im Projektordner `npm run preview` starten und http://127.0.0.1:8000 öffnen. Benötigt Node.js ab Version 20; keine Installation von Paketen oder Datenbank nötig. Spielstände werden lokal im Browser gespeichert. Für diesen Vorschaumodus ist Cloud-Speicherung nicht verfügbar. Immer dieselbe Browseradresse verwenden, damit der lokale Spielstand wiedergefunden wird.
 
 ## Render
-Das Projekt enthält `render.yaml`. Repository mit Render als Blueprint verbinden. Die Anwendung ist eine statische Website.
+Das Projekt enthält `render.yaml` für den Node-Webservice mit PostgreSQL. `npm start` startet diesen Cloud-Server und benötigt installierte Abhängigkeiten sowie `DATABASE_URL` als geheime Umgebungsvariable.
 
 ## v1.0-Funktionen
 - Charaktererstellung mit exakt 30 gemeinsam verteilbaren Attributpunkten
