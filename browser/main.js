@@ -1,120 +1,109 @@
+import {activeChapter} from '../core/longCampaign.js';
 import {GameCore} from '../core/gameCore.js';
-import {ActionInterpreter} from '../core/actionInterpreter.js';
+import {resolveChoice} from '../core/gameMaster.js';
+import {ensureStory,opening,chapter,storyChoices,exitsFor,atmosphere,PEOPLE,presentNPCs,rememberTurn} from '../core/campaign.js';
 import {cloudSave} from './cloudSave.js';
-
-const [backgrounds,traits,world,items,crew]=await Promise.all([
-  fetch('../data/backgrounds.json').then(r=>r.json()),fetch('../data/traits.json').then(r=>r.json()),fetch('../data/world.json').then(r=>r.json()),fetch('../data/items.json').then(r=>r.json()),fetch('../data/crew.json').then(r=>r.json())
-]);
-const core=new GameCore({backgrounds,traits,world,items,crew});const interpreter=new ActionInterpreter();const app=document.querySelector('#app');
-let gmEnabled=false,busy=false;
-const STAT_LABEL={strength:'Stärke',reflexes:'Reflexe',intelligence:'Intelligenz',perception:'Wahrnehmung',charisma:'Charisma',willpower:'Willenskraft',tech:'Technik',combat:'Kampf'};
-const DEFAULT_STATS={strength:4,reflexes:4,intelligence:4,perception:4,charisma:4,willpower:4,tech:3,combat:3};
-const statLabel=k=>STAT_LABEL[k]||k;
-const html=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const story=s=>html(s).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').filter(Boolean).map(p=>`<p>${p}</p>`).join('');
-
+const app=document.querySelector('#app');
+const data=Object.fromEntries(await Promise.all(['backgrounds','traits','world','items','crew'].map(async n=>[n,await(await fetch('./data/'+n+'.json')).json()])));
+let core=new GameCore(data),busy=false,gmEnabled=false,serverAvailable=false,localOnly=false,page='story',notice='',saveStatus='Lokal gespeichert',draft='';
+const KEY='voidbound-v1-save';
+const labels={strength:'Stärke',reflexes:'Reflexe',intelligence:'Intelligenz',perception:'Wahrnehmung',charisma:'Charisma',willpower:'Willenskraft',tech:'Technik',combat:'Kampf'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const prose=s=>String(s||'').split(/\n\s*\n/).filter(Boolean).map(p=>'<p>'+esc(p).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replaceAll('\n','<br>')+'</p>').join('');
+const button=(label,attrs='',cls='')=>'<button class="'+cls+'" '+attrs+'>'+esc(label)+'</button>';
+const titleName=id=>data.world.locations[id]?.name||id;
+function archiveLocal(){const old=localStorage.getItem(KEY);if(old)localStorage.setItem(KEY+'-backup-'+Date.now(),old);}
+function save(){if(!core.state.player)return;try{localStorage.setItem(KEY,core.serialize());saveStatus=localOnly||!serverAvailable?'Lokal gespeichert':core.state.gameMaster?'In der Cloud gespeichert':'Lokal gesichert';}catch{saveStatus='Speicher voll — bitte Spielstand exportieren';}}
+function exportSave(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([core.serialize()],{type:'application/json'}));a.download='VOIDBOUND-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+function importSave(file){if(!file)return;file.text().then(raw=>{const restored=new GameCore(data);restored.load(raw);archiveLocal();core=restored;localOnly=true;localStorage.setItem('voidbound-local-branch','true');ensureStory(core);save();page='story';notice='Als lokale Kopie geladen. Dein Cloud-Spielstand bleibt erhalten.';render();}).catch(e=>{notice=e.message;render();});}
+function home(){
+ app.innerHTML='<main class="landing"><div class="orbit-art" aria-hidden="true"><i></i><i></i><span>H-9</span></div><div class="landing-copy"><span class="eyebrow">ECHOES OF THE FALLEN</span><h1>VOIDBOUND<span>Das letzte Licht</span></h1><p class="lead">Eine vermisste Forscherin. Eine Warnung, die es noch nicht geben dürfte. Und eine Station, auf der jemand auf euch wartet.</p><p class="landing-note">Ein erzählerisches Science-Fiction-Rollenspiel über Vertrauen und den Preis einer Entscheidung.</p><div class="landing-actions">'+(core.state.player?button('Geschichte fortsetzen','id="continue"','primary'):'')+button(core.state.player?'Eine neue Reise beginnen':'Deine Reise beginnen','id="new"','primary subtle')+'<label class="file-button">Spielstand laden<input type="file" id="import" accept=".json,application/json"></label></div><div class="mode-note">'+(gmEnabled?'Freie Eingaben mit KI-Spielleiter verfügbar':'Vollständig spielbarer Handlungsbogen · lokal und ohne Anmeldung')+'</div><p class="notice" role="status">'+esc(notice)+'</p></div></main>';
+ document.querySelector('#continue')?.addEventListener('click',()=>{page='story';render();});
+ document.querySelector('#new').onclick=()=>{localOnly=Boolean(core.state.player)||!serverAvailable;creator();};
+ document.querySelector('#import').onchange=e=>importSave(e.target.files[0]);
+}
 function creator(){
- let selectedBg=backgrounds[0].id, positives=new Set([traits.positive[0].id,traits.positive[1].id]),negative=traits.negative[0].id,stats={...DEFAULT_STATS};
- app.innerHTML=`<div class="creator-shell"><section class="creator-card">
- <div class="eyebrow">VOIDBOUND // ECHOES OF THE FALLEN // VERSION 1.1 · AI GAME MASTER</div><h1>Wer wirst du im Void?</h1>
- <p class="lead">Deine Werte sind begrenzt. Du besitzt insgesamt <b>30 Attributpunkte</b>. Herkunft und Eigenschaften geben situative Vor- und Nachteile, verändern diese 30 Punkte aber nicht.</p>
- <label class="name-label">Name<input id="name" value="Rook" maxlength="24"></label>
- <div class="grid2"><div><h3>Herkunft</h3><div id="bgs" class="cards"></div></div><div><h3>Eigenschaften</h3><div id="traits"></div></div></div>
- <div class="allocation-head"><div><h3>Attribute</h3><span>Jeder Wert 1–8 · zusammen exakt 30</span></div><div id="points" class="points"></div></div>
- <div class="stats-editor" id="stats"></div>
- <div class="creator-actions"><button class="secondary" id="loadCloud">CLOUD-SPIELSTAND LADEN</button><button class="secondary" id="loadLocal">LOKALEN SPIELSTAND LADEN</button><label class="secondary file-btn">SAVE-DATEI LADEN<input id="loadFile" type="file" accept="application/json"></label><button class="primary" id="start">KAMPAGNE STARTEN</button></div>
- </section></div>`;
- const bgBox=document.querySelector('#bgs');
- backgrounds.forEach((b,i)=>{const el=document.createElement('button');el.className='select-card'+(i===0?' active':'');el.innerHTML=`<b>${b.name}</b><span>${b.desc}</span><em>${b.plus}</em><i>– ${b.minus}</i>`;el.onclick=()=>{selectedBg=b.id;[...bgBox.children].forEach(x=>x.classList.remove('active'));el.classList.add('active')};bgBox.append(el)});
- const tbox=document.querySelector('#traits');tbox.innerHTML=`<div class="trait-title">2 Stärken</div>${traits.positive.map(t=>`<label class="check"><input type="checkbox" value="${t.id}" ${positives.has(t.id)?'checked':''}><b>${t.name}</b><span>${t.desc}</span></label>`).join('')}<div class="trait-title danger">1 Schwäche</div>${traits.negative.map((t,i)=>`<label class="check"><input type="radio" name="neg" value="${t.id}" ${i===0?'checked':''}><b>${t.name}</b><span>${t.desc}</span></label>`).join('')}`;
- tbox.onchange=e=>{if(e.target.type==='checkbox'){const checked=[...tbox.querySelectorAll('input[type=checkbox]:checked')];if(checked.length>2){e.target.checked=false;return}positives=new Set(checked.map(x=>x.value))}else negative=e.target.value};
- const sbox=document.querySelector('#stats');
- for(const k of Object.keys(stats)){sbox.insertAdjacentHTML('beforeend',`<div class="stat-control"><span>${statLabel(k)}</span><div><button data-dec="${k}">−</button><output data-out="${k}">${stats[k]}</output><button data-inc="${k}">+</button></div></div>`)}
- function used(){return Object.values(stats).reduce((a,b)=>a+b,0)}
- function renderPoints(){const u=used(),left=30-u;const p=document.querySelector('#points');p.innerHTML=`<b>${left}</b><span>Punkte übrig</span>`;p.className='points '+(left===0?'ok':left<0?'bad':'');document.querySelector('#start').disabled=left!==0}
- sbox.onclick=e=>{const inc=e.target.dataset.inc,dec=e.target.dataset.dec;if(inc){if(stats[inc]<8&&used()<30)stats[inc]++;}if(dec){if(stats[dec]>1)stats[dec]--;}const k=inc||dec;if(k)document.querySelector(`[data-out="${k}"]`).value=stats[k];renderPoints()};renderPoints();
- document.querySelector('#start').onclick=async()=>{if(positives.size!==2)return alert('Bitte genau 2 positive Eigenschaften wählen.');try{core.createCharacter({name:document.querySelector('#name').value,background:selectedBg,positiveTraits:[...positives],negativeTrait:negative,stats});core.state.lastNarrative=introText();saveLocal();game(core.state.lastNarrative);await persistCloud();}catch(e){alert(e.message)}};
- document.querySelector('#loadCloud').onclick=async()=>{const state=await cloudSave.load();if(!state)return alert('Für diesen Spieler wurde noch kein Cloud-Spielstand gefunden oder die Cloud ist nicht erreichbar.');try{core.load(JSON.stringify(state));saveLocal();game(core.state.lastNarrative||'Der Cloud-Spielstand wurde aus der Datenbank geladen. Deine Entscheidungen, Beziehungen und Erinnerungen sind wieder da.')}catch(e){alert(e.message)}};
- document.querySelector('#loadLocal').onclick=()=>{const s=localStorage.getItem('voidbound-v1-save');if(!s)return alert('Kein lokaler Spielstand gefunden.');try{core.load(s);game(core.state.lastNarrative||'Der lokale Spielstand wurde geladen. Die Systeme der Wayfarer setzen dort wieder ein, wo du sie verlassen hast.')}catch(e){alert(e.message)}};
- document.querySelector('#loadFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{core.load(await f.text());saveLocal();game('Spielstand geladen. Deine Entscheidungen, Beziehungen und Erinnerungen wurden wiederhergestellt.')}catch(err){alert(err.message)}};
+ let stats={strength:4,reflexes:4,intelligence:4,perception:4,charisma:4,willpower:4,tech:3,combat:3};
+ app.innerHTML='<main class="creator"><button id="back" class="back">← Zurück</button><span class="eyebrow">DEIN PLATZ IN DIESER GESCHICHTE</span><h1>Wer kommt an Bord?</h1><p class="lead">Du hast das Artefakt aus einem Wrack geborgen. Was dich dorthin geführt hat, entscheidest du.</p><label>Name<input id="name" maxlength="24" value="Rook" autocomplete="off"></label><label>Deine Herkunft<select id="background">'+data.backgrounds.map(b=>'<option value="'+b.id+'">'+esc(b.name)+'</option>').join('')+'</select></label><div id="origin" class="origin"></div><details><summary>Attribute und Eigenschaften anpassen <span>30 Punkte</span></summary><div class="stat-editor">'+Object.entries(stats).map(([k,v])=>'<label>'+labels[k]+'<input type="number" min="1" max="8" value="'+v+'" data-stat="'+k+'"></label>').join('')+'</div><p id="point-count">30 / 30 Punkte</p><h3>Zwei Stärken</h3>'+data.traits.positive.map((t,i)=>'<label class="check"><input type="checkbox" value="'+t.id+'" '+(i<2?'checked':'')+'><span><strong>'+esc(t.name)+'</strong><small>'+esc(t.desc)+'</small></span></label>').join('')+'<label>Eine Schwäche<select id="negative">'+data.traits.negative.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('')+'</select></label></details><p class="notice" role="status" id="creator-error"></p><button id="start" class="primary">Die Nachricht empfangen →</button><p class="muted">Du kannst später jeden Spielstand als Datei sichern.</p></main>';
+ const bg=document.querySelector('#background');const showBg=()=>{const b=data.backgrounds.find(x=>x.id===bg.value);document.querySelector('#origin').innerHTML='<p>'+esc(b.desc)+'</p><small>'+esc(b.plus)+'<br>'+esc(b.minus)+'</small>';};showBg();bg.onchange=showBg;
+ document.querySelector('#back').onclick=home;
+ document.querySelectorAll('[data-stat]').forEach(e=>e.oninput=()=>{stats[e.dataset.stat]=Number(e.value);document.querySelector('#point-count').textContent=Object.values(stats).reduce((a,b)=>a+b,0)+' / 30 Punkte';});
+ document.querySelector('#start').onclick=()=>{try{
+ const next=new GameCore(data);next.createCharacter({name:document.querySelector('#name').value,background:bg.value,stats,positiveTraits:[...document.querySelectorAll('input[type=checkbox]:checked')].map(e=>e.value),negativeTrait:document.querySelector('#negative').value});
+ archiveLocal();localStorage.setItem('voidbound-local-branch',String(localOnly));core=next;ensureStory(core);core.state.version='1.2.0';core.state.lastNarrative=opening(core);notice='';save();page='story';render();
+ }catch(e){document.querySelector('#creator-error').textContent=e.message;}};
+}
+function statusBar(){const s=core.state;return '<div class="vitals"><span><small>GESUNDHEIT</small>'+s.hp+'<i>%</i></span><span><small>CREDITS</small>'+s.credits+'</span><span><small>CREW</small>'+Object.values(s.npc).filter(n=>n.status==='crew').length+'</span></div>';}
+function render(){
+ if(!core.state.player){home();return;}ensureStory(core);
+ const s=core.state,c=chapter(core);save();
+ app.innerHTML='<div class="game-layout"><header class="topbar"><button id="home" class="wordmark" aria-label="Hauptmenü">VOIDBOUND<span>ECHOES OF THE FALLEN</span></button><span class="chapter-label">'+esc(c.number)+'</span><span class="save-indicator" id="save-status">'+esc(saveStatus)+'</span></header><div class="game-grid"><aside class="companion"><div class="orbit-art small" aria-hidden="true"><i></i><i></i><span>'+(s.location.startsWith('ruins')||s.location.startsWith('nereid')?'N-IV':'H-9')+'</span></div><span class="eyebrow">'+esc(c.number)+'</span><h2>'+esc(c.title)+'</h2><p>'+esc(c.goal)+'</p>'+statusBar()+'<div class="present"><small>IN DEINER NÄHE</small>'+presentNPCs(core).map(id=>'<p><span class="avatar">'+PEOPLE[id].name.split(' ').map(x=>x[0]).slice(-2).join('')+'</span>'+esc(PEOPLE[id].name)+'</p>').join('')+'</div></aside><main id="content" tabindex="-1">'+panel()+'</main></div><nav class="main-nav" aria-label="Hauptnavigation">'+[['story','Geschichte'],['journal','Logbuch'],['crew','Crew'],['ship','Schiff'],['more','Mehr']].map(([id,label])=>button(label,'data-page="'+id+'" '+(page===id?'aria-current="page"':''),page===id?'active':'')).join('')+'</nav></div>';
+ document.querySelector('#home').onclick=()=>{if(!busy)home();};
+ document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{draft=document.querySelector('#action')?.value||draft;page=b.dataset.page;render();});
+ document.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>act({choiceId:b.dataset.choice,input:b.dataset.label}));
+ document.querySelectorAll('[data-travel]').forEach(b=>b.onclick=()=>act({travelId:b.dataset.travel,input:'Nach '+titleName(b.dataset.travel)+' gehen'}));
+ document.querySelector('#act-form')?.addEventListener('submit',e=>{e.preventDefault();act({input:document.querySelector('#action').value.trim()});});
+ document.querySelector('#export')?.addEventListener('click',exportSave);
+ document.querySelector('#import')?.addEventListener('change',e=>importSave(e.target.files[0]));
+ document.querySelectorAll('[data-read]').forEach(b=>b.onclick=()=>{const entry=s.story.chronicle[Number(b.dataset.read)];document.querySelector('#past-scene').innerHTML='<h2>'+esc(titleName(entry.location))+'</h2><p class="your-action">'+esc(entry.input)+'</p>'+prose(entry.narrative);document.querySelector('#past-scene').scrollIntoView({behavior:'smooth',block:'start'});});
 }
 
-function introText(){const p=core.state.player,bg=core.background();return `Seit drei Tagen gehört das Artefakt dir – falls man etwas besitzen kann, das auf keinem Scanner dieselbe Masse besitzt. Du hast es aus einem Wrack am Rand des Tantalus-Feldes geborgen, und seitdem schläfst du schlechter.\n\nJetzt liegt es auf der Hauptkonsole der VSS Wayfarer. Draußen schiebt sich Helios-9 langsam über die Frontscheibe. Eine ungelesene Nachricht blinkt im Kommunikationspuffer. Absender: Kael Voss.\n\nDeine Vergangenheit als **${bg.name}** hat dich gelehrt, dass Zufälle selten so sauber aussehen. Das Artefakt bleibt schwarz und reglos. Trotzdem hast du das Gefühl, dass es auf etwas wartet – vielleicht auf dich.`}
-
-function sceneArt(type){
- const common='<div class="dust"></div><div class="vignette"></div>';
- if(type==='ship')return `<div class="scene-art ship-art"><div class="window"><div class="planet"></div><div class="stars"></div></div><div class="console left"></div><div class="console right"></div><div class="deck-lines"></div>${common}</div>`;
- if(type==='ship_engine')return `<div class="scene-art engine-art"><div class="reactor"></div><div class="pipe p1"></div><div class="pipe p2"></div><div class="sparks"></div>${common}</div>`;
- if(['ship_quarters','ship_med','ship_cargo','ship_airlock'].includes(type))return `<div class="scene-art interior-art ${type}"><div class="wallpanel"></div><div class="room-object"></div><div class="door"></div>${common}</div>`;
- if(['station','station_market','security','bar'].includes(type))return `<div class="scene-art station-art ${type}"><div class="neon">${type==='bar'?'LAST LIGHT':'HELIOS-9'}</div><div class="gantry g1"></div><div class="gantry g2"></div><div class="crowd"></div>${common}</div>`;
- if(type==='planet')return `<div class="scene-art planet-art"><div class="horizon"></div><div class="distant-ruin"></div><div class="moon"></div>${common}</div>`;
- return `<div class="scene-art ruins-art ${type}"><div class="moon"></div><div class="monolith m1"></div><div class="monolith m2"></div><div class="glyphs">◈ ⟡ ◇ ⌁</div>${common}</div>`;
+function evidenceBoard(){
+ const c=activeChapter(core);if(!c)return '';
+ const e=core.state.story.expansion;
+ return '<section class="evidence-board"><span class="eyebrow">ERMITTLUNGEN</span><h2>'+esc(c.title)+'</h2>'+c.missions.map(m=>{
+ const q=e.cases[m.id],open=m.requires.every(id=>e.cases[id]?.done);
+ return '<details'+(e.selected===m.id?' open':'')+'><summary>'+esc(m.title)+' · '+(q?.done?'Abgeschlossen':!open?'Weitere Erkenntnisse nötig':m.optional?'Crewgeschichte':'Offen')+'</summary><p>'+esc(m.brief)+'</p>'+m.leads.map((l,i)=>'<p><strong>'+esc(l.title)+'</strong> · '+esc(c.sites[l.site][0])+'<br>'+(q?.read[i]?esc(l.document):q?.leads[i]?'Gesichert – am Fundort lesen':'Noch nicht gesichert')+'</p>').join('')+(q?.solved?'<p>'+esc(m.explanation)+'</p>':'')+'</details>';
+ }).join('')+'</section>';
 }
 
-function game(lastText){
- const loc=core.location(),p=core.state.player;const bg=core.background();saveLocal();
- app.innerHTML=`<main class="game-shell scene-${loc.type}">${sceneArt(loc.type)}
- <header><div><span class="logo">VOIDBOUND</span><small>ECHOES OF THE FALLEN · v1.1</small></div><div class="topstats"><span>◉ ${core.state.credits} cr</span><span>HP ${core.state.hp}%</span><span>SH ${core.state.shield}%</span><span>LV ${core.state.level}</span></div></header>
- <aside class="left-panel glass"><div class="portrait">${html(p.name[0]?.toUpperCase()||'?')}</div><h2>${html(p.name)}</h2><span class="muted">${html(bg?.name)}</span><div class="meters"><label>Gesundheit <b>${core.state.hp}%</b><div><i style="width:${core.state.hp}%"></i></div></label><label>Schild <b>${core.state.shield}%</b><div><i style="width:${core.state.shield}%"></i></div></label></div><div class="navbuttons"><button data-panel="char">CHARAKTER</button><button data-panel="inventory">INVENTAR</button><button data-panel="quests">MISSIONEN</button><button data-panel="crew">CREW</button><button data-panel="ship">SCHIFF</button><button data-panel="map">STERNENKARTE</button><button data-panel="rep">REPUTATION</button><button data-panel="memory">ERINNERUNGEN</button><button data-panel="help">SPIELHILFE</button><button id="save">SAVE-DATEI</button></div></aside>
- <section class="narrative glass"><div class="location-tag">${loc.zone.toUpperCase()} // ${loc.type.toUpperCase()}</div><h1>${html(loc.name)}</h1><p class="locdesc">${html(loc.desc)}</p><div id="result" class="result">${story(lastText||'Was möchtest du tun?')}${resolutionHtml()}</div><div class="prompt"><p class="muted">${gmEnabled?"KI-Spielleiter · Online":"Klassischer Offline-Modus · regelbasierte Antworten"}</p><label>DEINE HANDLUNG – FREIE TEXTEINGABE</label><textarea id="action" placeholder="z. B. Ich beobachte die Söldner erst, tue dann so als wäre ich Wartungstechniker und versuche unbemerkt hinter Kael zu gelangen."></textarea><div class="prompt-bottom"><span>Das Spiel wertet Absicht, Ziel, Methode und Ton deiner Eingabe aus.</span><button id="act" class="primary">AKTION AUSFÜHREN</button></div></div></section>
- <aside class="right-panel glass"><h3>SITUATION</h3><div class="chips">${(loc.affordances||[]).map(x=>`<span>${html(x)}</span>`).join('')}</div><h3>AKT I · DAS SIGNAL</h3>${questSummary()}<h3>LETZTE EREIGNISSE</h3><div class="mini-log">${core.state.log.slice(0,6).map(x=>`<span>${html(x.text)}</span>`).join('')}</div></aside>
- <footer>World State aktiv · ${core.state.memories.length} Erinnerungen · ${core.state.history.length} gespeicherte Handlungen · Sofort-Autosave · Spieler-ID ${html(cloudSave.playerId?.slice(0,8)||'offline')} · <span id="save-status">${cloudSave.online?'Cloud verbunden':'lokaler Fallback'}</span></footer></main><div id="modal"></div>`;
- document.querySelector('#act').onclick=act;document.querySelector('#action').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();act()}};document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>showPanel(b.dataset.panel));document.querySelector('#save').onclick=downloadSave;
+function panel(){
+ const s=core.state,t=s.story,c=chapter(core);
+ if(page==='story')return '<article class="story"><div class="scene-heading"><span class="eyebrow">'+esc(data.world.locations[s.location].zone.toUpperCase())+'</span><span class="turn-label">Zug '+s.turn+'</span></div><h1>'+esc(titleName(s.location).split(' · ').at(-1))+'</h1><p class="scene-situation">'+esc(atmosphere(core))+'</p>'+(s.lastPlayerInput?'<div class="your-action"><small>DEINE HANDLUNG</small>'+esc(s.lastPlayerInput)+'</div>':'')+'<div class="narrative" aria-live="polite">'+prose(s.lastNarrative)+'</div>'+resolution()+(t.ending&&!storyChoices(core).length?'<section class="ending"><span class="eyebrow">ENDE DES ERSTEN HANDLUNGSBOGENS</span><h2>Was von uns bleibt</h2><p>'+esc(t.journal.at(-1)?.text)+'</p>'+button('Entscheidungen im Logbuch ansehen','data-page="journal"','primary')+'</section>':'<section class="choices" aria-label="Handlungsmöglichkeiten"><h2>Was tust du?</h2>'+storyChoices(core).map(x=>'<button class="choice" data-choice="'+x.id+'" data-label="'+esc(x.label)+'" '+(busy?'disabled':'')+'><span>'+esc(x.label)+'</span><small>'+esc(x.detail)+'</small><b aria-hidden="true">↗</b></button>').join('')+'<form id="act-form"><label for="action">Deine eigenen Worte</label><textarea id="action" maxlength="4000" rows="3" placeholder="'+(gmEnabled?'Beschreibe, was du tust oder sagst …':'Zum Beispiel: Ich spreche mit Kael.')+'" '+(busy?'disabled':'')+'>'+esc(draft)+'</textarea><div class="input-footer"><small>'+(gmEnabled?'Der Spielleiter berücksichtigt deine Absicht und die bisherige Geschichte.':'Ohne KI: Szenenhandlungen und einfache Ortswechsel. Freie Deutung benötigt den KI-Spielleiter.')+'</small><button class="primary" type="submit" '+(busy?'disabled':'')+'>'+(busy?'Die Szene geht weiter …':'Handeln →')+'</button></div></form></section><section class="exits"><h3>Weitergehen</h3>'+exitsFor(core).map(e=>button(e.label.split(' · ').at(-1),'data-travel="'+e.id+'" '+(busy?'disabled':''),'exit')).join('')+'</section>')+'<p class="notice" role="status">'+esc(notice)+'</p></article>';
+ if(page==='journal')return '<section class="panel"><span class="eyebrow">LOGBUCH DER WAYFARER</span><h1>Was wir wissen</h1><p class="lead">'+esc(c.goal)+'</p>'+evidenceBoard()+'<div class="journal">'+(t.journal.length?t.journal.map(x=>'<article><small>ZUG '+x.turn+'</small><h2>'+esc(x.title)+'</h2><p>'+esc(x.text)+'</p></article>').join(''):'<p>Noch liegt nur Lyras Nachricht vor dir. Die ersten Spuren warten auf der Brücke.</p>')+'</div><h2>Aufträge</h2>'+Object.values(s.quests).map(q=>'<article class="card"><small>'+esc(q.status==='completed'?'Abgeschlossen':'Offen')+'</small><h3>'+esc(q.title)+'</h3>'+q.objectives.map(x=>'<p>'+esc(x)+'</p>').join('')+'</article>').join('')+'<h2>Vergangene Szenen</h2><div class="history-list">'+t.chronicle.map((x,i)=>button('Zug '+x.turn+' · '+x.input,'data-read="'+i+'"','history-row')).reverse().join('')+'</div><article id="past-scene" class="narrative"></article></section>';
+ if(page==='crew')return '<section class="panel"><span class="eyebrow">MENSCHEN, KEINE RESSOURCEN</span><h1>An deiner Seite</h1>'+Object.entries(PEOPLE).filter(([id])=>id==='mara'||s.npc[id].status!=='Unbekannt').map(([id,p])=>{const n=s.npc[id];return '<article class="crew-card"><div class="crew-title"><span class="avatar">'+esc(p.name.split(' ').map(x=>x[0]).slice(-2).join(''))+'</span><div><small>'+esc(p.role)+'</small><h2>'+esc(p.name)+'</h2></div></div><p>'+esc(id==='mara'?'Sie hält die Wayfarer flugbereit. Auf Helios-9 lebt ihr Bruder.':id==='kael'?'Ein Kontakt, der einen Fehler nicht mehr rückgängig machen kann.':t.beats.lyra?'Sie ist aus der Haft befreit. Die Warnung lässt sie trotzdem nicht schlafen.':'Du kennst bislang nur ihre abgebrochene Nachricht.')+'</p><div class="relationship"><span>Vertrauen <strong>'+n.trust+'</strong></span><span>'+esc(n.anger>20?'Verletzt':n.trust<0?'Distanziert':n.trust>15?'Verbunden':'Vorsichtig')+'</span></div>'+[...n.longTerm,...n.shortTerm].slice(-4).map(m=>'<p class="memory-note">'+esc(m.event||m.outcome)+'</p>').join('')+'</article>';}).join('')+'<h2>Versprechen</h2>'+(s.promises.length?s.promises.map(p=>'<p class="card">'+esc(p.text)+'<small>'+esc(p.kept===true?'Gehalten':p.kept===false?'Gebrochen':'Noch offen')+'</small></p>').join(''):'<p class="muted">Was du zusagst, bleibt nicht folgenlos.</p>')+'</section>';
+ if(page==='ship')return '<section class="panel"><span class="eyebrow">DEIN ZUHAUSE ZWISCHEN DEN STERNEN</span><h1>'+esc(s.ship.name)+'</h1><p class="lead">Mara hält sie zusammen. Nicht jede Reparatur ist schön. Jede zählt.</p><div class="ship-stats">'+[['Hülle',s.ship.hull],['Reaktor',s.ship.reactorStability],['Treibstoff',s.ship.fuel],['Schild',s.shield]].map(([n,v])=>'<div><span>'+n+'</span><strong>'+v+'%</strong><meter min="0" max="100" value="'+v+'">'+v+'</meter></div>').join('')+'</div><h2>Erreichbare Wege</h2><p class="muted">Du kannst nur von deinem aktuellen Ort weiterreisen. Fernflüge starten auf der Brücke.</p>'+exitsFor(core).map(e=>button(e.label,'data-travel="'+e.id+'" '+(busy?'disabled':''),'route')).join('')+'<h2>Module</h2>'+s.ship.modules.map(x=>'<p class="card">'+esc(x)+'</p>').join('')+'</section>';
+ return '<section class="panel"><span class="eyebrow">DEINE REISE</span><h1>'+esc(s.player.name)+'</h1><p>'+esc(core.background()?.name)+'</p><details open><summary>Ausrüstung & Inventar</summary>'+s.inventory.map(id=>{const i=core.item(id);return '<article class="item"><h3>'+esc(i.name)+'</h3><p>'+esc(i.desc)+'</p></article>';}).join('')+'</details><details><summary>Attribute</summary><div class="sheet">'+Object.entries(s.player.stats).map(([k,v])=>'<div>'+labels[k]+'<strong>'+v+'</strong></div>').join('')+'</div><p>Erfahrung '+s.xp+' · Stufe '+s.level+'</p></details><details><summary>Ruf bei den Fraktionen</summary>'+Object.entries(s.reputation).map(([id,v])=>'<p>'+esc(({union:'Terranische Union',crimson:'Crimson Fleet',helix:'Helix',freeSystems:'Freie Systeme'})[id])+' <strong>'+v+'</strong></p>').join('')+'</details><h2>Offene Rechnungen</h2><p>Dock: '+(t.dockDebt||0)+' Credits · Medizin: '+(t.medicalDebt||0)+' Credits</p><h2>Spielstand</h2><p>'+esc(saveStatus)+'. Vor dem Import und einem neuen Spiel wird die lokale Version zusätzlich gesichert.</p>'+button('Spielstand als Datei sichern','id="export"','primary')+'<label class="file-button">Spielstand importieren<input type="file" id="import" accept=".json,application/json"></label><details><summary>So spielst du</summary><p>Die Szenenhandlungen sind konkrete Möglichkeiten, keine Pflichtreihenfolge. Beobachten kann Verhandlungen erleichtern. Ein gescheiterter Versuch kann dich verletzen oder Aufmerksamkeit erzeugen, ohne den Weg abzuschneiden.</p><p>Eigene Formulierungen werden mit aktivem KI-Spielleiter im Zusammenhang ausgewertet. Ohne KI kannst du den gesamten Handlungsbogen über die Szenenhandlungen spielen. Die Würfe stehen unter „Folgen & Proben“.</p></details></section>';
 }
-function questSummary(){const q=core.state.quests.main_echo;return `<p><b>${html(q.title)}</b></p>${q.objectives.map(x=>`<p class="objective">◆ ${html(x)}</p>`).join('')}`}
-async function act(forcedInput){
- if(busy)return;
- const ta=document.querySelector('#action');const text=typeof forcedInput==='string'?forcedInput:ta.value.trim();if(!text)return;
- busy=true;
- const button=document.querySelector('#act');button.disabled=true;button.textContent='WELT REAGIERT …';
+function resolution(){
+ const r=core.state.lastResolution;if(!r)return '';
+ return '<details class="resolution"><summary>Folgen & Proben</summary>'+r.events.map(e=>'<p>'+esc(e)+'</p>').join('')+r.rolls.map(x=>'<p class="roll">'+esc(labels[x.stat])+' · W20 '+x.roll+' + '+x.mod+' = <strong>'+x.total+'</strong> gegen '+x.difficulty+' · '+(x.success?'Erfolg':'Fehlschlag')+'</p>').join('')+'</details>';
+}
+function matchLocal(input){
+ const n=input.toLocaleLowerCase('de').replace(/[.!?]/g,'').trim(),choices=storyChoices(core);
+ const exact=choices.find(c=>c.label.toLocaleLowerCase('de')===n);if(exact)return {choiceId:exact.id};
+ if(/\b(nicht|kein|keine|keinen|aber|und|schieß|schiesse|schieße|töte|beleidige|drohe)\b/.test(n))return null;
+ const aliases={read_signal:/^(ich )?(lese|prüfe|verfolge|öffne).*(nachricht|signal)$/,scan_artifact:/^(ich )?(untersuche|scanne|prüfe) (das )?artefakt$/,speak_mara:/^(ich )?(spreche|rede) mit mara$/,read_room:/^(ich )?(beobachte|untersuche) (den )?raum$/,kael_truth:/^(ich )?(spreche|rede) mit kael$/,lyra_briefing:/^(ich )?(spreche|rede) mit lyra$/,repair_coupler:/^(ich )?repariere (den )?(koppler|reaktor)$/,release_lyra:/^(ich )?(zeige|nutze) (den )?freigabecode$/,decode_archive:/^(ich )?entschlüssele (die )?aufzeichnung$/,open_gate:/^(ich )?öffne (das )?tor$/};
+ const match=choices.filter(c=>aliases[c.id]?.test(n));if(match.length===1)return {choiceId:match[0].id};
+ if(/^(ich )?(gehe|reise|laufe|betrete|geh)\b/.test(n)){const exits=exitsFor(core).filter(e=>n.includes(e.label.split(' · ').at(-1).toLocaleLowerCase('de')));if(exits.length===1)return {travelId:exits[0].id};}
+ return null;
+}
+async function act({input,choiceId,travelId}){
+ if(busy||!input)return;
+ const pending=!localOnly&&serverAvailable?JSON.parse(localStorage.getItem('voidbound-pending-turn-'+cloudSave.playerId)||'null'):null;
+ if(pending&&pending.input===input){choiceId=pending.choiceId;travelId=pending.travelId;}
+ 
+ if(!choiceId&&!travelId&&!gmEnabled){const match=matchLocal(input);if(!match){notice='Diese freie Handlung kann der lokale Modus nicht sicher deuten. Wähle eine Szenenhandlung oder aktiviere den KI-Spielleiter auf dem Server.';draft=input;render();return;}({choiceId,travelId}=match);}
+ busy=true;draft=input;notice='';render();
  try{
-  if(gmEnabled){
-   if(!core.state.gameMaster&&!localStorage.getItem(`voidbound-pending-turn-${cloudSave.playerId}`)&&!(await persistCloud()))throw new Error('Der Ausgangsspielstand konnte nicht gespeichert werden. Bitte erneut versuchen.');
-   const state=await cloudSave.action(text);core.load(JSON.stringify(state));saveLocal();game(core.state.lastNarrative);
-  }else{
-   if(core.state.gameMaster)throw new Error('Dieser KI-Spielstand benötigt den KI-Server. Der Spielstand bleibt erhalten.');
-   const r=interpreter.interpret(text,core);core.state.lastPlayerInput=text;core.state.lastNarrative=r.text;
-   saveLocal();game(r.text);await persistCloud();
-  }
- }catch(error){alert(error.message);}
- finally{busy=false;const b=document.querySelector('#act');if(b){b.disabled=false;b.textContent='AKTION AUSFÜHREN';}}
-}
-function saveLocal(){if(core.state.player)localStorage.setItem('voidbound-v1-save',core.serialize())}
-async function persistCloud(){if(!core.state.player)return false;if(core.state.gameMaster){saveLocal();return true;}saveLocal();const ok=await cloudSave.save(core.state);if(ok)core.state.lastSavedTurn=core.state.turn;return ok;}
-function downloadSave(){const blob=new Blob([core.serialize()],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`voidbound-v1-${core.state.player.name}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-
-function showPanel(type){const m=document.querySelector('#modal'),p=core.state.player;let title='',body='';
- if(type==='char'){title='Charakter';body=`<div class="char-head"><div class="portrait big">${html(p.name[0])}</div><div><h2>${html(p.name)}</h2><p>${html(core.background().name)}</p></div></div><div class="sheet">${Object.entries(p.stats).map(([k,v])=>`<div><span>${statLabel(k)}</span><b>${v}</b></div>`).join('')}</div><h3>Eigenschaften</h3><div class="item"><b>+</b>${p.positiveTraits.map(id=>core.trait(id)?.name).join(' · ')}</div><div class="item"><b>–</b>${core.trait(p.negativeTrait)?.name}</div><p class="muted">Attributsumme: ${Object.values(p.stats).reduce((a,b)=>a+b,0)} / 30</p>`}
- if(type==='inventory'){title='Inventar';body=core.state.inventory.map(id=>{const i=core.item(id);return `<div class="item"><b>${html(i.name)}</b><span>${html(i.desc)}</span><small>${html(i.type)}</small></div>`}).join('')}
- if(type==='quests'){title='Missionen';body=Object.values(core.state.quests).map(q=>`<div class="quest"><b>${html(q.title)}</b><em>${html(q.status)}</em>${q.objectives.map(o=>`<p>◆ ${html(o)}</p>`).join('')}</div>`).join('')}
- if(type==='crew'){title='Crew & Kontakte';body=crew.map(c=>{const s=core.state.npc[c.id]||{};return `<div class="crew-card"><b>${html(c.name)}</b><small>${html(c.role)}</small><p>${html(c.desc)}</p><div>Vertrauen <strong>${s.trust??c.trust}</strong> · ${html(s.status||c.status)}</div><p>Respekt ${s.respect??0} · Ärger ${s.anger??0} · Angst ${s.fear??0}</p><p>${html(s.mood||"abwartend")}</p>${(s.shortTerm||[]).slice(-3).map(x=>`<p class="muted">${html(x.input)} — ${html(x.outcome)}</p>`).join("")}</div>`}).join('')}
- if(type==='ship'){title=core.state.ship.name;const s=core.state.ship;body=`<div class="ship-grid">${[['Hülle',s.hull],['Schild',core.state.shield],['Treibstoff',s.fuel],['Reaktor',s.reactorStability]].map(([n,v])=>`<div><span>${n}</span><b>${v}%</b><i><u style="width:${v}%"></u></i></div>`).join('')}</div><h3>Module</h3>${s.modules.map(x=>`<div class="item">${html(x)}</div>`).join('')}<p>Frachtraum: ${s.cargo}/${s.cargoMax}</p>`}
- if(type==='map'){title='Sternenkarte';body=`<div class="map"><button data-go="ship_bridge">VSS WAYFARER</button><button data-go="helios_docks">HELIOS-9</button><button data-go="nereid_surface" ${core.state.flags.nereidUnlocked?'':'disabled'}>NEREID IV ${core.state.flags.nereidUnlocked?'':'· GESPERRT'}</button></div><p class="muted">Direkte Fernreisen sind nur möglich, wenn das Ziel storyseitig bekannt ist. Innerhalb eines Ortes bewegst du dich über deine freie Texteingabe.</p>`}
- if(type==='rep'){title='Reputation';const names={union:'Terranische Union',crimson:'Crimson Fleet',helix:'Helix Corporation',freeSystems:'Freie Systeme'};body=Object.entries(core.state.reputation).map(([k,v])=>`<div class="rep-row"><span>${names[k]||k}</span><b>${v>0?'+':''}${v}</b></div>`).join('')}
- if(type==='memory'){title='Erinnerungen & Konsequenzen';body=core.state.memories.length?[...core.state.memories].sort((a,b)=>b.importance-a.importance).map(x=>`<div class="memory"><b>${x.importance}</b><span>${html(x.text)}</span><small>${html(x.type)} · Runde ${x.turn}</small></div>`).join(''):'<p>Noch keine prägenden Erinnerungen.</p>'}
- if(type==='help'){title='So spielst du';body=`<p>Du musst keine Antwortoption anklicken. Schreibe natürlich, was dein Charakter tun oder sagen soll. Je konkreter deine Eingabe, desto genauer kann das Regelsystem Methode und Ziel bestimmen.</p><div class="item"><b>Beispiel:</b><span>„Ich beobachte erst, ob die Wachen nervös wirken. Dann behaupte ich ruhig, ich sei von der Wartung und müsse hinter ihnen an das Terminal.“</span></div><p>Die Engine nutzt deine Attribute, Herkunft, Eigenschaften, Ausrüstung, den Ort und vorherige Entscheidungen. Ein Fehlschlag beendet eine Idee nicht automatisch – du kannst sie verändern oder kombinieren.</p>`}
- m.innerHTML=`<div class="modal-bg"><div class="modal-card glass"><button id="close">×</button><div class="eyebrow">VOIDBOUND DATABASE</div><h1>${title}</h1>${body}</div></div>`;document.querySelector('#close').onclick=()=>m.innerHTML='';m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(busy)return;const id=b.dataset.go;if(gmEnabled||core.state.gameMaster){m.innerHTML="";act(`Ich reise nach ${core.data.world.locations[id].name}.`);return;}if(id==='nereid_surface'&&!core.state.flags.nereidUnlocked)return;core.forceTravel(id);core.state.lastNarrative=`Die Navigation bestätigt den Kurs. ${core.location().desc}`;m.innerHTML='';game(core.state.lastNarrative);persistCloud()})
+ if(serverAvailable&&!localOnly){
+  if(!core.state.gameMaster&&!localStorage.getItem('voidbound-pending-turn-'+cloudSave.playerId)&&!(await cloudSave.save(core.state)))throw new Error('Der Ausgangsspielstand konnte nicht in der Cloud gesichert werden.');
+  core.load(JSON.stringify(await cloudSave.action(input,{choiceId,travelId})));
+ }else{
+  if(!choiceId&&!travelId)throw new Error('Für diese Handlung wird der KI-Spielleiter benötigt.');
+  const next=new GameCore(data);next.load(core.serialize());const result=resolveChoice(next,{choiceId,travelId,input});rememberTurn(next,input,result.narrative,result);core=next;
+ }
+ draft='';save();page='story';
+ }catch(e){notice=e.message;}
+ finally{busy=false;render();document.querySelector('.scene-heading')?.scrollIntoView({block:'start',behavior:'smooth'});}
 }
 async function bootstrap(){
-  try{gmEnabled=Boolean((await (await fetch('/api/gm')).json()).enabled);}catch{}
-  await cloudSave.init();
-  let cloudState=null,localState=null;
-  try{cloudState=await cloudSave.load();}catch{}
-  try{const raw=localStorage.getItem('voidbound-v1-save');if(raw)localState=JSON.parse(raw);}catch{}
-  const cloudTurn=Number(cloudState?.turn??-1),localTurn=Number(localState?.turn??-1);
-  const chosen=cloudState?.gameMaster?cloudState:localTurn>cloudTurn?localState:cloudState||localState;
-  if(chosen?.player){
-    try{
-      core.load(JSON.stringify(chosen));
-      saveLocal();
-      if(localTurn>cloudTurn&&!core.state.gameMaster)await persistCloud();
-      game(core.state.lastNarrative||`Du kehrst in Runde ${core.state.turn} zu ${core.location().name} zurück. Dein letzter Spielstand wurde automatisch wiederhergestellt.`);
-      const pending=JSON.parse(localStorage.getItem(`voidbound-pending-turn-${cloudSave.playerId}`)||'null');if(pending)document.querySelector('#action').value=pending.input;
-      return;
-    }catch(error){console.warn('Autosave konnte nicht geladen werden:',error);}
-  }
-  creator();
+ try{const r=await fetch('/api/gm',{signal:AbortSignal.timeout(3000)});if(r.ok){const cfg=await r.json();gmEnabled=Boolean(cfg.enabled);serverAvailable=true;}}catch{}
+ let local=null,remote=null;try{local=JSON.parse(localStorage.getItem(KEY)||'null');}catch{}
+ if(serverAvailable){await cloudSave.init();remote=await cloudSave.load();}
+ const localBranch=localStorage.getItem('voidbound-local-branch')==='true';
+ const chosen=localBranch&&local?.player?local:remote?.gameMaster?remote:local||remote;
+ if(chosen?.player){try{core.load(JSON.stringify(chosen));ensureStory(core);localOnly=localBranch||!serverAvailable;const p=JSON.parse(localStorage.getItem('voidbound-pending-turn-'+cloudSave.playerId)||'null');draft=p?.input||'';}catch(e){notice='Der vorhandene Spielstand wurde nicht verändert: '+e.message;}}
+ home();
 }
 bootstrap();
-
-function resolutionHtml(){const r=core.state.lastResolution;if(!r)return "";return `<details><summary>Regelergebnis</summary>${story(r.events.join("\n"))}${story(r.rolls.map(x=>`W20: ${x.roll} + ${x.mod} = ${x.total} gegen ${x.difficulty} (${statLabel(x.stat)}) – ${x.success?"Erfolg":"Fehlschlag"}`).join("\n"))}</details>`;}

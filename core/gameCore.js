@@ -1,3 +1,4 @@
+import {validateSave} from './saveValidation.js';
 export class GameCore {
   static STAT_KEYS=['strength','reflexes','intelligence','perception','charisma','willpower','tech','combat'];
   static STAT_POINTS=30;
@@ -8,7 +9,7 @@ export class GameCore {
 
   freshState(){
     return {
-      version:'1.0.1',createdAt:new Date().toISOString(),player:null,location:'ship_bridge',previousLocation:null,
+      version:'1.2.0',createdAt:new Date().toISOString(),player:null,location:'ship_bridge',previousLocation:null,
       credits:850,hp:100,shield:65,xp:0,level:1,
       inventory:['compact_pistol','multitool','echo_artifact','medkit'],
       equipment:{weapon:'compact_pistol',armor:null,tool:'multitool'},
@@ -100,5 +101,5 @@ export class GameCore {
   recordAction(action){this.state.lastAction=action;this.state.history.push({...action,turn:this.state.turn,location:this.state.location});this.state.history=this.state.history.slice(-120);}
 
   serialize(){return JSON.stringify(this.state,null,2);}
-  load(json){const parsed=JSON.parse(json);if(!parsed?.version||!parsed.player)throw new Error('Ungültiger Spielstand');this.state={...this.freshState(),...parsed};}
+  load(json){const parsed=JSON.parse(json);this.state=validateSave(parsed,this);}
 }

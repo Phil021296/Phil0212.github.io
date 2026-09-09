@@ -20,12 +20,12 @@ class CloudSave {
   async initializePlayer(){
     try{
       if(this.playerId&&this.playerToken){
-        const r=await fetch('/api/player',{headers:this.headers(),cache:'no-store'});
+        const r=await fetch('/api/player',{headers:this.headers(),cache:'no-store',signal:AbortSignal.timeout(12000)});
         if(r.ok){this.ready=true;this.online=true;return true;}
         if(r.status===401){localStorage.removeItem(ID_KEY);localStorage.removeItem(TOKEN_KEY);this.playerId=null;this.playerToken=null;}
         else throw new Error('player_check_failed');
       }
-      const r=await fetch('/api/player',{method:'POST'});
+      const r=await fetch('/api/player',{method:'POST',signal:AbortSignal.timeout(12000)});
       if(!r.ok)throw new Error('player_create_failed');
       const data=await r.json();
       this.playerId=data.playerId;this.playerToken=data.playerToken;
@@ -51,18 +51,19 @@ class CloudSave {
     this.inFlight=this.inFlight.then(doSave,doSave);
     return this.inFlight;
   }
-  async action(input){
+  async action(input,selection={}){
     await this.inFlight;
     if(!this.ready&&!(await this.init()))throw new Error('Cloud-Verbindung fehlt.');
     const key=`voidbound-pending-turn-${this.playerId}`;
     let pending=JSON.parse(localStorage.getItem(key)||'null');
-    if(pending&&pending.input!==input)throw new Error('Ein Spielzug ist noch unbestätigt. Sende zuerst die vorige Eingabe erneut oder lade die Seite neu.');
-    pending??={input,requestId:crypto.randomUUID(),revision:this.lastRevision};
+    if(pending&&(pending.input!==input||pending.choiceId!==selection.choiceId||pending.travelId!==selection.travelId))throw new Error('Ein Spielzug ist noch unbestätigt. Sende zuerst die vorige Eingabe erneut oder lade die Seite neu.');
+    pending??={input,...selection,requestId:crypto.randomUUID(),revision:this.lastRevision};
     localStorage.setItem(key,JSON.stringify(pending));
     const r=await fetch('/api/action',{method:'POST',headers:this.headers(),body:JSON.stringify(pending),signal:AbortSignal.timeout(110000)});
     if(!r.ok){
       const data=await r.json().catch(()=>({}));
       if(r.status===409){localStorage.removeItem(key);throw new Error('Der Cloud-Spielstand wurde geändert. Bitte die Seite neu laden.');}
+      if(data.error==='turn_failed'){localStorage.removeItem(key);throw new Error('Der Spielzug wurde nicht abgeschlossen. Dein gespeicherter Stand ist erhalten. Bitte versuche es erneut oder ändere die Eingabe.');}
       if(data.error==='ai_not_configured')throw new Error('Der KI-Spielleiter ist auf dem Server noch nicht eingerichtet.');
       throw new Error('Spielzug nicht bestätigt. Bitte dieselbe Eingabe erneut senden; sie wird nicht doppelt ausgeführt.');
     }

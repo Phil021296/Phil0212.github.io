@@ -23,7 +23,7 @@ export const server=http.createServer(async(req,res)=>{
   }catch{res.writeHead(404);res.end();}
 });
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const port=Number(process.env.PORT||8000);
+  const port=Number(process.env.PORT||8012);
   server.on('error',error=>{console.error(`Lokaler Start fehlgeschlagen: ${error.message}`);process.exitCode=1;});
   server.listen(port,'127.0.0.1',()=>console.log(`VOIDBOUND: http://127.0.0.1:${port} — lokaler Spielstand, keine Cloud-Verbindung`));
 }

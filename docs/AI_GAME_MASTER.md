@@ -1,3 +1,5 @@
+> Historischer Stand 1.1. Für die aktive Version 1.2 gelten README.md, SPIELKONZEPT_1.2.md und PRUEFBERICHT_1.2.md. Die lokale Version verwendet nun den neuen Handlungsbogen, nicht mehr den alten Regelinterpreter.
+
 # VOIDBOUND 1.1 – AI Game Master
 
 Entwicklungsstand vom 08.09.2026. Eigenständiges Projekt im Ordner `VOIDBOUND/`.

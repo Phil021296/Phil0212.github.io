@@ -1,19 +1,420 @@
 {
-  "locations":{
-    "ship_bridge":{"name":"VSS Wayfarer · Brücke","type":"ship","zone":"wayfarer","desc":"Gedämpftes Blau liegt über den Konsolen. Jenseits der Frontscheibe hängt Helios-9 wie ein stählerner Ring im Sternenlicht.","exits":["ship_corridor","helios_docks"],"affordances":["Artefakt untersuchen","Helios-9 anfliegen","Schiffssysteme prüfen"]},
-    "ship_corridor":{"name":"VSS Wayfarer · Mitteldeck","type":"ship","zone":"wayfarer","desc":"Der schmale Korridor vibriert mit dem Puls des Reaktors. Leitungen verschwinden hinter alten Wartungsplatten; mehrere Schotts führen tiefer ins Schiff.","exits":["ship_bridge","ship_engineering","ship_quarters","ship_medbay","ship_cargo","ship_airlock"],"affordances":["Maschinenraum betreten","Quartier aufsuchen","Krankenstation prüfen","Frachtraum öffnen"]},
-    "ship_engineering":{"name":"VSS Wayfarer · Maschinenraum","type":"ship_engine","zone":"wayfarer","desc":"Der Hauptreaktor glimmt hinter Panzerglas. Ein instabiler Energiekoppler knistert bei jedem Lastwechsel.","exits":["ship_corridor"],"affordances":["Energiekoppler reparieren","Reaktor diagnostizieren","Schilde umleiten"]},
-    "ship_quarters":{"name":"VSS Wayfarer · Kapitänsquartier","type":"ship_quarters","zone":"wayfarer","desc":"Ein schmales Bett, ein versenkter Schreibtisch und ein Sichtfenster, das mehr Sterne als Heimat zeigt. Hier lagern deine privaten Aufzeichnungen.","exits":["ship_corridor"],"affordances":["Ruhepause","Aufzeichnungen lesen","Ausrüstung ordnen"]},
-    "ship_medbay":{"name":"VSS Wayfarer · Krankenstation","type":"ship_med","zone":"wayfarer","desc":"Weiße Diagnoseanzeigen werfen kaltes Licht auf zwei Medliegen. Der Autodoc meldet begrenzte Reserven.","exits":["ship_corridor"],"affordances":["Verletzungen behandeln","Medikits prüfen"]},
-    "ship_cargo":{"name":"VSS Wayfarer · Frachtraum","type":"ship_cargo","zone":"wayfarer","desc":"Container sind an Magnetschienen verriegelt. Zwischen Ersatzteilen und alten Handelswaren steht die versiegelte Kiste, in der du das Artefakt gefunden hast.","exits":["ship_corridor"],"affordances":["Fracht durchsuchen","Artefaktkiste untersuchen","Bergungsmaterial prüfen"]},
-    "ship_airlock":{"name":"VSS Wayfarer · Luftschleuse","type":"ship_airlock","zone":"wayfarer","desc":"Warnstreifen rahmen das innere Schott. Statusanzeigen zeigen grünes Licht für Helios-9.","exits":["ship_corridor","helios_docks"],"affordances":["Helios-9 betreten","Raumanzug prüfen"]},
-    "helios_docks":{"name":"Helios-9 · Dockring","type":"station","zone":"helios","desc":"Frachter hängen an massiven Andockarmen. Servodrohnen schneiden Funken aus beschädigten Hüllen, während Zollscanner über Reisende gleiten.","exits":["ship_airlock","helios_promenade","helios_bar","helios_security"],"affordances":["Last Light aufsuchen","Promenade betreten","Zoll beobachten","zur Wayfarer zurückkehren"]},
-    "helios_promenade":{"name":"Helios-9 · Promenade","type":"station_market","zone":"helios","desc":"Leuchtreklamen, Händlerstimmen und der Geruch von Gewürzen und Kühlmittel vermischen sich unter einem kilometerlangen Sichtband zur Gasriesin Helios.","exits":["helios_docks","helios_market","helios_bar"],"affordances":["Markt besuchen","Gerüchte sammeln","Last Light betreten"]},
-    "helios_market":{"name":"Helios-9 · Schattenmarkt","type":"station_market","zone":"helios","desc":"Hinter halbtransparenten Vorhängen wechseln Implantate, Codeschlüssel und nicht registrierte Waffen ihre Besitzer. Niemand stellt unnötige Fragen.","exits":["helios_promenade"],"affordances":["Handeln","Informationen kaufen","Schmuggelware prüfen"]},
-    "helios_bar":{"name":"Helios-9 · Bar „Last Light“","type":"bar","zone":"helios","desc":"Violettes Neon spiegelt sich auf schwarzen Tischen. Kael Voss sitzt am hinteren Ende des Raumes – und drei bewaffnete Söldner blockieren den direkten Weg zu ihm.","exits":["helios_docks","helios_promenade"],"affordances":["mit Söldnern reden","Kael erreichen","Wartungszugang nutzen","Umgebung beobachten"]},
-    "helios_security":{"name":"Helios-9 · Sicherheitssektion","type":"security","zone":"helios","desc":"Panzerverglasung, Gesichtsscanner und das Emblem der Stationssicherheit lassen wenig Raum für improvisierte Geschichten.","exits":["helios_docks"],"affordances":["Sicherheitsdaten erfragen","Fahndungslisten prüfen"]},
-    "nereid_surface":{"name":"Nereid IV · Staubebene","type":"planet","zone":"nereid","desc":"Violetter Staub zieht in dünnen Schleiern über schwarzen Fels. In der Ferne ragen geometrische Formen aus dem Boden, zu regelmäßig für natürliche Berge.","exits":["ruins_gate"],"affordances":["Ruinen untersuchen","Umgebung scannen","Spuren verfolgen"]},
-    "ruins_gate":{"name":"Nereid IV · Architektentor","type":"ruins","zone":"nereid","desc":"Eine fugenlose Wand aus schwarzem Material erhebt sich vor dir. Lichtadern erwachen dort, wo das Artefakt unter deiner Jacke pulsiert.","exits":["nereid_surface","ruins_archive"],"affordances":["Tor untersuchen","Artefakt einsetzen","Glyphen analysieren"]},
-    "ruins_archive":{"name":"Nereid IV · Echo-Archiv","type":"ruins_inside","zone":"nereid","desc":"Der Raum hinter dem Tor ist größer, als es die Außenmaße erlauben. Schwebende Fragmente aus Licht zeigen Sternenkarten, die teilweise die Zukunft abzubilden scheinen.","exits":["ruins_gate"],"affordances":["Archiv befragen","Sternenkarte untersuchen","Echo berühren"]}
+  "locations": {
+    "ship_bridge": {
+      "name": "VSS Wayfarer · Brücke",
+      "type": "ship",
+      "zone": "wayfarer",
+      "desc": "Gedämpftes Blau liegt über den Konsolen. Jenseits der Frontscheibe hängt Helios-9 wie ein stählerner Ring im Sternenlicht.",
+      "exits": [
+        "ship_corridor",
+        "helios_docks"
+      ],
+      "affordances": [
+        "Artefakt untersuchen",
+        "Helios-9 anfliegen",
+        "Schiffssysteme prüfen"
+      ]
+    },
+    "ship_corridor": {
+      "name": "VSS Wayfarer · Mitteldeck",
+      "type": "ship",
+      "zone": "wayfarer",
+      "desc": "Der schmale Korridor vibriert mit dem Puls des Reaktors. Leitungen verschwinden hinter alten Wartungsplatten; mehrere Schotts führen tiefer ins Schiff.",
+      "exits": [
+        "ship_bridge",
+        "ship_engineering",
+        "ship_quarters",
+        "ship_medbay",
+        "ship_cargo",
+        "ship_airlock"
+      ],
+      "affordances": [
+        "Maschinenraum betreten",
+        "Quartier aufsuchen",
+        "Krankenstation prüfen",
+        "Frachtraum öffnen"
+      ]
+    },
+    "ship_engineering": {
+      "name": "VSS Wayfarer · Maschinenraum",
+      "type": "ship_engine",
+      "zone": "wayfarer",
+      "desc": "Der Hauptreaktor glimmt hinter Panzerglas. Ein instabiler Energiekoppler knistert bei jedem Lastwechsel.",
+      "exits": [
+        "ship_corridor"
+      ],
+      "affordances": [
+        "Energiekoppler reparieren",
+        "Reaktor diagnostizieren",
+        "Schilde umleiten"
+      ]
+    },
+    "ship_quarters": {
+      "name": "VSS Wayfarer · Kapitänsquartier",
+      "type": "ship_quarters",
+      "zone": "wayfarer",
+      "desc": "Ein schmales Bett, ein versenkter Schreibtisch und ein Sichtfenster, das mehr Sterne als Heimat zeigt. Hier lagern deine privaten Aufzeichnungen.",
+      "exits": [
+        "ship_corridor"
+      ],
+      "affordances": [
+        "Ruhepause",
+        "Aufzeichnungen lesen",
+        "Ausrüstung ordnen"
+      ]
+    },
+    "ship_medbay": {
+      "name": "VSS Wayfarer · Krankenstation",
+      "type": "ship_med",
+      "zone": "wayfarer",
+      "desc": "Weiße Diagnoseanzeigen werfen kaltes Licht auf zwei Medliegen. Der Autodoc meldet begrenzte Reserven.",
+      "exits": [
+        "ship_corridor"
+      ],
+      "affordances": [
+        "Verletzungen behandeln",
+        "Medikits prüfen"
+      ]
+    },
+    "ship_cargo": {
+      "name": "VSS Wayfarer · Frachtraum",
+      "type": "ship_cargo",
+      "zone": "wayfarer",
+      "desc": "Container sind an Magnetschienen verriegelt. Zwischen Ersatzteilen und alten Handelswaren steht die versiegelte Kiste, in der du das Artefakt gefunden hast.",
+      "exits": [
+        "ship_corridor"
+      ],
+      "affordances": [
+        "Fracht durchsuchen",
+        "Artefaktkiste untersuchen",
+        "Bergungsmaterial prüfen"
+      ]
+    },
+    "ship_airlock": {
+      "name": "VSS Wayfarer · Luftschleuse",
+      "type": "ship_airlock",
+      "zone": "wayfarer",
+      "desc": "Warnstreifen rahmen das innere Schott. Statusanzeigen zeigen grünes Licht für Helios-9.",
+      "exits": [
+        "ship_corridor",
+        "helios_docks"
+      ],
+      "affordances": [
+        "Helios-9 betreten",
+        "Raumanzug prüfen"
+      ]
+    },
+    "helios_docks": {
+      "name": "Helios-9 · Dockring",
+      "type": "station",
+      "zone": "helios",
+      "desc": "Frachter hängen an massiven Andockarmen. Servodrohnen schneiden Funken aus beschädigten Hüllen, während Zollscanner über Reisende gleiten.",
+      "exits": [
+        "ship_airlock",
+        "helios_promenade",
+        "helios_bar",
+        "helios_security"
+      ],
+      "affordances": [
+        "Last Light aufsuchen",
+        "Promenade betreten",
+        "Zoll beobachten",
+        "zur Wayfarer zurückkehren"
+      ]
+    },
+    "helios_promenade": {
+      "name": "Helios-9 · Promenade",
+      "type": "station_market",
+      "zone": "helios",
+      "desc": "Leuchtreklamen, Händlerstimmen und der Geruch von Gewürzen und Kühlmittel vermischen sich unter einem kilometerlangen Sichtband zur Gasriesin Helios.",
+      "exits": [
+        "helios_docks",
+        "helios_market",
+        "helios_bar"
+      ],
+      "affordances": [
+        "Markt besuchen",
+        "Gerüchte sammeln",
+        "Last Light betreten"
+      ]
+    },
+    "helios_market": {
+      "name": "Helios-9 · Schattenmarkt",
+      "type": "station_market",
+      "zone": "helios",
+      "desc": "Hinter halbtransparenten Vorhängen wechseln Implantate, Codeschlüssel und nicht registrierte Waffen ihre Besitzer. Niemand stellt unnötige Fragen.",
+      "exits": [
+        "helios_promenade"
+      ],
+      "affordances": [
+        "Handeln",
+        "Informationen kaufen",
+        "Schmuggelware prüfen"
+      ]
+    },
+    "helios_bar": {
+      "name": "Helios-9 · Bar „Last Light“",
+      "type": "bar",
+      "zone": "helios",
+      "desc": "Violettes Neon spiegelt sich auf schwarzen Tischen. Kael Voss sitzt am hinteren Ende des Raumes – und drei bewaffnete Söldner blockieren den direkten Weg zu ihm.",
+      "exits": [
+        "helios_docks",
+        "helios_promenade"
+      ],
+      "affordances": [
+        "mit Söldnern reden",
+        "Kael erreichen",
+        "Wartungszugang nutzen",
+        "Umgebung beobachten"
+      ]
+    },
+    "helios_security": {
+      "name": "Helios-9 · Sicherheitssektion",
+      "type": "security",
+      "zone": "helios",
+      "desc": "Panzerverglasung, Gesichtsscanner und das Emblem der Stationssicherheit lassen wenig Raum für improvisierte Geschichten.",
+      "exits": [
+        "helios_docks"
+      ],
+      "affordances": [
+        "Sicherheitsdaten erfragen",
+        "Fahndungslisten prüfen"
+      ]
+    },
+    "nereid_surface": {
+      "name": "Nereid IV · Staubebene",
+      "type": "planet",
+      "zone": "nereid",
+      "desc": "Violetter Staub zieht in dünnen Schleiern über schwarzen Fels. In der Ferne ragen geometrische Formen aus dem Boden, zu regelmäßig für natürliche Berge.",
+      "exits": [
+        "ruins_gate"
+      ],
+      "affordances": [
+        "Ruinen untersuchen",
+        "Umgebung scannen",
+        "Spuren verfolgen"
+      ]
+    },
+    "ruins_gate": {
+      "name": "Nereid IV · Architektentor",
+      "type": "ruins",
+      "zone": "nereid",
+      "desc": "Eine fugenlose Wand aus schwarzem Material erhebt sich vor dir. Lichtadern erwachen dort, wo das Artefakt unter deiner Jacke pulsiert.",
+      "exits": [
+        "nereid_surface",
+        "ruins_archive"
+      ],
+      "affordances": [
+        "Tor untersuchen",
+        "Artefakt einsetzen",
+        "Glyphen analysieren"
+      ]
+    },
+    "ruins_archive": {
+      "name": "Nereid IV · Echo-Archiv",
+      "type": "ruins_inside",
+      "zone": "nereid",
+      "desc": "Der Raum hinter dem Tor ist größer, als es die Außenmaße erlauben. Schwebende Fragmente aus Licht zeigen Sternenkarten, die teilweise die Zukunft abzubilden scheinen.",
+      "exits": [
+        "ruins_gate"
+      ],
+      "affordances": [
+        "Archiv befragen",
+        "Sternenkarte untersuchen",
+        "Echo berühren"
+      ]
+    },
+    "h9_coordination": {
+      "name": "Helios-9 · Koordinationsraum",
+      "desc": "Unter dem alten Fahrplan hängen jetzt Papierlisten. Auf jede kommt eine andere Handschrift.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_ward",
+        "h9_records",
+        "h9_concourse",
+        "h9_maintenance",
+        "h9_terminal",
+        "h9_exchange",
+        "h9_council"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_ward": {
+      "name": "Helios-9 · Notstation",
+      "desc": "Eine Pflegerin schreibt Namen auf Klebeband. Die elektronischen Armbänder sind ausgegangen.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_records": {
+      "name": "Helios-9 · Registerhalle",
+      "desc": "Ausgedruckte Evakuierungslisten bedecken die Kontrollpulte. Manche Namen sind mehrfach durchgestrichen.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_concourse": {
+      "name": "Helios-9 · Wohnring",
+      "desc": "Zwischen Schlafmatten stehen Ladekabel und Wasserkanister. Niemand hat den richtigen Anschluss.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_maintenance": {
+      "name": "Helios-9 · Lastenschächte",
+      "desc": "Hinter den Leitungen bewegen sich Lampen. Die Instandhaltung arbeitet seit zwei Schichten ohne Ablösung.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_terminal": {
+      "name": "Helios-9 · Fährterminal",
+      "desc": "Die Anzeigetafel meldet pünktliche Abfahrten für Fähren, die nie am Steg standen.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_exchange": {
+      "name": "Helios-9 · Tauschhalle",
+      "desc": "Batterien liegen neben Fotografien. Beides wird gebraucht, nur eines hat einen festen Preis.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "h9_council": {
+      "name": "Helios-9 · Ratsfoyer",
+      "desc": "Ein Sicherheitsmann lässt Flüchtlinge eintreten und Kameras draußen warten.",
+      "type": "station",
+      "zone": "ashes",
+      "exits": [
+        "h9_coordination"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "choir_camp": {
+      "name": "Nereid · Basislager",
+      "desc": "Schwarzer Staub sammelt sich in den Falten der Zelte. Mara hält die Triebwerke warm.",
+      "type": "station",
+      "zone": "choir",
+      "exits": [
+        "choir_wreck",
+        "choir_ridge",
+        "choir_array",
+        "choir_habitat",
+        "choir_vault"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "choir_wreck": {
+      "name": "Nereid · Wrack der Orison",
+      "desc": "Der Rumpf liegt auf der Seite. Innen hängen Becher noch an ihren Magnetleisten.",
+      "type": "station",
+      "zone": "choir",
+      "exits": [
+        "choir_camp"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "choir_ridge": {
+      "name": "Nereid · Glasgrat",
+      "desc": "Unter deinen Sohlen antwortet der Grat mit einem tiefen Ton.",
+      "type": "station",
+      "zone": "choir",
+      "exits": [
+        "choir_camp"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "choir_array": {
+      "name": "Nereid · Antennenfeld",
+      "desc": "Jede Schüssel zeigt auf einen anderen Punkt unter dem Horizont.",
+      "type": "station",
+      "zone": "choir",
+      "exits": [
+        "choir_camp"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "choir_habitat": {
+      "name": "Nereid · Unterirdischer Garten",
+      "desc": "Wurzeln drängen durch die Fugen. Zwischen ihnen leuchten handgeschriebene Wegweiser.",
+      "type": "station",
+      "zone": "choir",
+      "exits": [
+        "choir_camp"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    },
+    "choir_vault": {
+      "name": "Nereid · Resonanzkammer",
+      "desc": "Die Wände geben eure Schritte mit einer halben Sekunde Verspätung zurück.",
+      "type": "station",
+      "zone": "choir",
+      "exits": [
+        "choir_camp"
+      ],
+      "affordances": [
+        "Umgebung untersuchen",
+        "Hinweise sichern"
+      ]
+    }
   }
 }

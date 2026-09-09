@@ -1,68 +1,47 @@
-# VOIDBOUND: Echoes of the Fallen — v1.1 AI Game Master
+# Neu: VOIDBOUND 1.3
 
-Neu: serverseitige KI-Interpretation → Regelengine → dynamische Erzählung → atomarer Cloud-Spielstand. Einrichtung, Architektur und ehrlicher Prüfstatus: [AI Game Master](docs/AI_GAME_MASTER.md). Ohne KI-Konfiguration bleibt die lokale Vorschau als klassischer Modus verfügbar. Die folgenden v1.0/v1.0.1-Abschnitte beschreiben den übernommenen Ausgangsstand.
+Zwei zusätzliche spielbare Kapitel. Nach dem bisherigen Ende im Spiel fortsetzen. Details und Grenzen der Spielzeit: [Kapitel 1.3](docs/KAPITEL_1.3.md).
 
-Browserbasierter Sci-Fi-RPG-Vertical-Slice mit freier Texteingabe und Unity-portabler Datenstruktur.
+# VOIDBOUND · Das letzte Licht — Version 1.2
 
-## Start lokal
-Unter Windows `start.bat` ausführen oder im Projektordner `npm run preview` starten und http://127.0.0.1:8000 öffnen. Benötigt Node.js ab Version 20; keine Installation von Paketen oder Datenbank nötig. Spielstände werden lokal im Browser gespeichert. Für diesen Vorschaumodus ist Cloud-Speicherung nicht verfügbar. Immer dieselbe Browseradresse verwenden, damit der lokale Spielstand wiedergefunden wird.
+Ein spielbarer erster Handlungsbogen für ein erzählerisches Science-Fiction-Rollenspiel. Du suchst eine verschwundene Forscherin, erfährst von einem gefährlichen Versuch auf Helios-9 und entscheidest, wem du vertraust und was aus der Warnung wird.
 
-## Render
-Das Projekt enthält `render.yaml` für den Node-Webservice mit PostgreSQL. `npm start` startet diesen Cloud-Server und benötigt installierte Abhängigkeiten sowie `DATABASE_URL` als geheime Umgebungsvariable.
+## Starten
 
-## v1.0-Funktionen
-- Charaktererstellung mit exakt 30 gemeinsam verteilbaren Attributpunkten
-- 8 Attribute, jeweils 1–8
-- 9 Herkünfte mit situativen Vor- und Nachteilen
-- positive und negative Eigenschaften
-- freie Texteingabe mit Intent-, Ziel-, Methoden- und Ton-Erkennung
-- W20-Proben mit Attribut-, Herkunfts- und Eigenschaftsboni
-- längere dynamische Storytexte mit Erfolgs- und Fehlschlagsvarianten
-- World State, Erinnerungen, gespeicherte Handlungen und NPC-Vertrauen
-- Inventar und Gegenstandsdaten
-- Missionen und Questfortschritt
-- Crew/Kontakte
-- Reputation
-- Schiffswerte und Reparatur-Nebenmission
-- Sternenkarte und freischaltbare Reiseziele
-- unterschiedliche Umgebungs-GUIs für Schiff, Maschinenraum, Quartier, Krankenstation, Frachtraum, Station, Bar, Markt, Planet und Architektenruinen
-- lokaler Autosave via localStorage
-- JSON-Savegame Download und Import
-- Akt I als spielbarer Storyabschnitt
+Unter Windows **start.bat** doppelt anklicken. Das Startfenster geöffnet lassen. Der Browser öffnet **http://127.0.0.1:8012** erst, wenn der lokale Server bereit ist.
 
-## Unity-Port
-Spiellogik (`core/`) und Content (`data/*.json`) sind von der Browser-GUI getrennt. Beim Unity-Port werden die Core-Klassen nach C# übertragen; IDs, Datenmodelle, Story-/World-State-Strukturen und JSON-Inhalte können weitgehend übernommen werden.
+Alternativ: `npm run preview`, danach dieselbe Adresse im Browser öffnen.
 
-## PostgreSQL / Neon Cloud-Speicher
+Node.js muss installiert sein (hier mit Node.js 24 geprüft). Der lokale Handlungsbogen braucht weder Zugangsdaten noch eine Datenbank noch installierte Zusatzpakete. Ist Port 8012 schon belegt, das andere Startfenster schließen. Es wird nicht versehentlich eine fremde oder alte Vorschau geöffnet.
 
-Diese Ausgabe enthält zusätzlich einen Node-Backend-Service. Jeder Browser erhält beim ersten Aufruf eine anonyme Spieler-ID und ein geheimes Spielertoken. Das Token wird nur im Browser gespeichert; in PostgreSQL liegt ausschließlich dessen SHA-256-Hash. Der komplette Spielstand wird serverseitig als JSONB gespeichert.
+## Was neu ist
 
-### Render
+- Zusammenhängende Geschichte in vier Kapiteln mit drei unterschiedlichen Abschlüssen.
+- Kael, Lyra und Mara mit eigenen Interessen, Erinnerungen und persönlichen Konflikten.
+- Verhandeln, bezahlen, schleichen oder kämpfen; Beobachten verändert die Chancen.
+- Befreiung statt bloßem Vertrauenswert, nachwirkende Versprechen und ein Epilog, der Entscheidungen aufgreift.
+- Fehlschläge mit Verletzungen und Aufmerksamkeit statt endloser Wiederholungen. Bergung, medizinische Versorgung und Treibstoff auf Rechnung verhindern Sackgassen.
+- Ruhige Leseansicht, fünf Hauptbereiche, Logbuch mit vergangenen Szenen und nachvollziehbare Würfe.
 
-1. Projekt zu GitHub hochladen.
-2. In Render als Blueprint aus `render.yaml` anlegen.
-3. Render fragt beim ersten Blueprint-Setup nach `DATABASE_URL`.
-4. Dort die Neon PostgreSQL Connection String als geheime Environment Variable hinterlegen. Sie darf nicht in `render.yaml`, JavaScript oder Git stehen.
-5. Deploy starten. Die Tabellen `players` und `savegames` werden beim Serverstart automatisch angelegt.
+## Lokales Spiel und KI
 
-### Datenmodell
+Der ganze Handlungsbogen lässt sich über die angezeigten Szenenhandlungen spielen. Die Buttons lösen echte Regelentscheidungen aus. Der alte allgemeine Textbaustein-Interpreter wird in der Oberfläche nicht mehr verwendet.
 
-- `players`: Spieler-ID, Token-Hash, Charakter-/Anzeigename, Version, Erstellungszeit, letzte Aktivität.
-- `savegames`: genau ein aktueller Cloud-Spielstand pro Spieler, gespeichert als PostgreSQL `JSONB`.
+Mit einem konfigurierten KI-Server können eigene Eingaben semantisch interpretiert und passend zur tatsächlichen Handlung erzählt werden. Ohne KI werden nur eindeutig unterstützte Szenenbefehle und Ortswechsel angenommen. Bei unklaren oder negierten Eingaben wird keine vermeintlich passende Aktion erfunden.
 
-Der lokale Browser-Spielstand bleibt als Fallback bestehen. Dadurch kann bei einem kurzen Datenbank- oder Netzwerkproblem weitergespielt werden.
+Für den Cloud-Server `npm ci` ausführen, `DATABASE_URL` als geheime Server-Umgebungsvariable setzen und `npm start` verwenden. Für freie KI-Handlungen zusätzlich `OPENAI_API_KEY` und `OPENAI_MODEL` setzen. Der Server lädt eine .env-Datei nicht automatisch. Der Render-Blueprint enthält die entsprechenden Variablen. Keine Zugangsdaten in Browserdateien ablegen. Mobile Online-Nutzung benötigt eine erreichbare HTTPS-Adresse.
 
+## Spielstände
 
-## v1.0.1 – Sofort-Autosave & dynamische Reaktionen
+Spielstände bleiben im Browser und können unter **Mehr → Spielstand als Datei sichern** exportiert werden. Vor einem neuen Spiel oder Import wird die bisherige lokale Kopie zusätzlich gespeichert. Importierte Spielstände werden geprüft; ungültige Dateien ersetzen den aktuellen Stand nicht. Neue lokale Reisen und importierte Kopien überschreiben keinen servergeführten Spielstand.
 
-- Nach **jeder ausgeführten Spieleraktion** wird zuerst lokal und anschließend sofort in Neon PostgreSQL gespeichert.
-- Cloud-Saves werden strikt nacheinander geschrieben, damit ein langsamer älterer Request niemals einen neueren Spielstand überschreibt.
-- Jeder Datenbank-Save besitzt eine fortlaufende `revision`.
-- Beim Start werden lokaler und Cloud-Spielstand verglichen. Der Spielstand mit der höheren Zugnummer gewinnt; ein neuerer lokaler Stand wird automatisch wieder in Neon hochgeladen.
-- `lastPlayerInput` und `lastNarrative` werden mitgespeichert. Nach einem Neustart wird exakt die letzte Situation wieder angezeigt.
-- W20-Würfe nutzen `crypto.getRandomValues()` (mit Fallback) und vermeiden direkt identische Folgewürfe.
-- Identische Texteingaben werden gezählt. Wiederholte Taktiken lösen nicht erneut denselben Storyblock aus, sondern werden als neuer Versuch in einer bereits veränderten Welt ausgewertet.
-- Wiederholte Aktionen können mit zunehmender Vorhersehbarkeit schwieriger werden.
-- Die Erzählengine berücksichtigt den konkreten Wortlaut stärker und ergänzt wechselnde Sinneseindrücke, Folgen und Anschlussmöglichkeiten.
+Die ältere Vorschau lief auf Port 8000. Browser trennen den Speicher nach Adresse: Ein dort gespeicherter Spielstand ist nicht gelöscht, erscheint auf Port 8012 aber nicht automatisch. In der alten Vorschau exportieren und in der neuen über **Spielstand laden** importieren. Auch `localhost` und `127.0.0.1` sind verschiedene Speicherorte.
 
-Beim nächsten Deploy führt der Server die nötige Datenbankmigration (`revision` in `savegames`) automatisch mit `ALTER TABLE ... IF NOT EXISTS` durch.
+Der vorherige Quellstand liegt unter `Sicherungen/vor_story_1.2_20260908_174901/`. Das vorhandene `VOIDBound.rar` ist ein älteres Paket; das neue Paket heißt `VOIDBOUND_v1.2_Das_letzte_Licht.zip`.
+
+## Prüfen und weiterentwickeln
+
+`npm run verify` prüft Syntax und automatisierte Tests. [Prüfbericht](docs/PRUEFBERICHT_1.2.md) und [Aufbau der Geschichte](docs/SPIELKONZEPT_1.2.md) beschreiben Umfang und Grenzen. Dies ist ein abgeschlossener erster Handlungsbogen, noch kein mehraktiges fertiges Rollenspiel.
+
+Das aktuelle Arbeitsprojekt ist **C:\Users\philc\Documents\VOIDBound**.
+

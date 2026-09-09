@@ -1,11 +1,9 @@
 import {GameCore} from '../core/gameCore.js';
-import {contextFor,resolvePlan} from '../core/gameMaster.js';
-export async function runTurn({state,input,data,ai}){
+import {contextFor,resolvePlan,resolveChoice} from '../core/gameMaster.js';
+import {rememberTurn} from '../core/campaign.js';
+export async function runTurn({state,input,data,ai,choiceId,travelId}){
  const core=new GameCore(data);core.load(JSON.stringify(state));
- const plan=await ai.interpret(input,contextFor(core));
- const result=resolvePlan(core,input,plan);
- // A failed narrator aborts the entire turn; callers never persist a half turn.
- const narrative=await ai.narrate(input,contextFor(core),result);
- core.state.lastNarrative=narrative;core.state.lastResolution=result;
- return core.state;
+ const result=choiceId||travelId?resolveChoice(core,{choiceId,travelId,input}):resolvePlan(core,input,await ai.interpret(input,contextFor(core)));
+ const narrative=(choiceId||travelId)?result.narrative:await ai.narrate(input,contextFor(core),result);
+ core.state.gameMaster=true;rememberTurn(core,input,narrative,result);return core.state;
 }
