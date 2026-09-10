@@ -9,7 +9,7 @@ export class GameCore {
 
   freshState(){
     return {
-      version:'1.2.0',createdAt:new Date().toISOString(),player:null,location:'ship_bridge',previousLocation:null,
+      version:'1.4.0',createdAt:new Date().toISOString(),player:null,location:'ship_bridge',previousLocation:null,
       credits:850,hp:100,shield:65,xp:0,level:1,
       inventory:['compact_pistol','multitool','echo_artifact','medkit'],
       equipment:{weapon:'compact_pistol',armor:null,tool:'multitool'},

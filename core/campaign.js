@@ -1,6 +1,7 @@
+import {pendingEncounter} from './encounters.js';
 import {activeChapter,longChoices,longApply,longStatus} from './longCampaign.js';
 import {TEXT,ARRIVALS,endingText} from './storyContent.js';
-export const VERSION='1.3.0';
+export const VERSION='1.4.0';
 export const PEOPLE={
  kael:{name:'Kael Voss',role:'Vermittler',voice:'Kurze Sätze, trockener Humor; weicht seiner Schuld aus.',desire:'Lyra lebend aus der Haft bringen.',boundary:'Er verkauft niemanden ein zweites Mal.'},
  lyra:{name:'Dr. Lyra Venn',role:'Xenoarchäologin',voice:'Präzise; wird unter Stress leise.',desire:'Die Warnung beweisen, ohne sie zur Waffe zu machen.',boundary:'Menschenleben sind keine Versuchsdaten.'},
@@ -75,7 +76,7 @@ export function presentNPCs(core){
  return ids;
 }
 export function exitsFor(core){
- const extended=activeChapter(core);if(extended)return Object.keys(extended.sites).filter(id=>id!==core.state.location&&(core.state.location===extended.hub||id===extended.hub)).map(id=>({id,label:extended.sites[id][0],kind:'travel',target:id}));
+ const extended=activeChapter(core);if(extended&&(pendingEncounter(core)||core.state.hp<=0))return [];if(extended)return Object.keys(extended.sites).filter(id=>id!==core.state.location&&(core.state.location===extended.hub||id===extended.hub)).map(id=>({id,label:extended.sites[id][0],kind:'travel',target:id}));
  if(core.state.story?.ending)return [];
  const s=core.state,ids=[...core.location().exits];
  if(s.location==='nereid_surface')ids.push('ship_bridge');
@@ -83,7 +84,7 @@ export function exitsFor(core){
 }
 export function atmosphere(core){
  const s=core.state,t=ensureStory(core),scene=s.scenes?.[s.location];
- if(activeChapter(core))return core.location().desc+' Aufmerksamkeit: '+t.expansion.attention+'.';
+ if(activeChapter(core))return core.location().desc+' '+(t.expansion.attention>=8?'An den Zugängen werden inzwischen Ausweise geprüft.':t.expansion.attention>=4?'Eure Namen tauchen in den Kontrollprotokollen auf.':'Noch könnt ihr euch unauffällig bewegen.');
  if(t.ending)return 'Die entscheidende Übertragung ist raus. Zum ersten Mal seit Helios-9 muss niemand sofort antworten.';
  if(s.location==='helios_bar'&&t.beats.approach==='violent')return 'Glassplitter liegen unter den Tischen. Kael sitzt neben der umgestürzten Bank; in der Ferne läuft eine Sirene.';
  if(s.location==='helios_bar')return s.flags.heliosConflictResolved?(t.beats.approach==='escaped'?'Der Versorgungsgang ist still. Kael wartet, bis dein Atem wieder ruhig wird.':'Kael schiebt sein unberührtes Glas von sich. Die Männer sind gegangen.'):scene?.alarmLevel>=3?'Der Barkeeper hat die Musik abgestellt. Jetzt hören alle zu.':'Kael sieht zu dir, dann zum Seitenausgang. Drei Männer stehen zwischen euch.';

@@ -13,3 +13,5 @@
 @media(prefers-reduced-motion:reduce){*,html{scroll-behavior:auto!important;transition:none!important}}
 
 .evidence-board{margin:24px 0;padding:20px;border:1px solid #345157;border-radius:12px}.evidence-board details{border-top:1px solid #345157;padding:10px 0}.evidence-board summary{min-height:48px;cursor:pointer;display:flex;align-items:center;line-height:1.5}.evidence-board p{line-height:1.75;overflow-wrap:anywhere}
+
+.encounter-panel{margin:24px 0;padding:20px;border-left:3px solid #cfaa73;background:#152128;border-radius:8px}.encounter-panel p{line-height:1.8}.expedition-status{color:#d7bc91;font-size:.85rem;overflow-wrap:anywhere}

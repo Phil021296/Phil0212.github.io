@@ -4,7 +4,7 @@ import {runTurn} from './turnService.js';
 const data=Object.fromEntries(await Promise.all(['backgrounds','traits','world','items','crew'].map(async name=>[name,JSON.parse(await readFile(new URL(`../data/${name}.json`,import.meta.url),'utf8'))])));
 const ai=createAI();
 export function mountActions(app,pool,authenticate,{provider=ai,gameData=data}={}){
- app.get('/api/gm',(_req,res)=>res.json({enabled:provider.configured,version:'1.2.0'}));
+ app.get('/api/gm',(_req,res)=>res.json({enabled:provider.configured,version:'1.4.0'}));
  app.post('/api/action',authenticate,async(req,res)=>{
   const {input,requestId,revision,choiceId,travelId}=req.body||{};
   if(typeof input!=='string'||!input.trim()||input.length>4000||typeof requestId!=='string'||!/^[a-zA-Z0-9-]{16,80}$/.test(requestId)||!Number.isSafeInteger(revision)||revision<0)return res.status(400).json({error:'invalid_action'});

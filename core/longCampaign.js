@@ -1,3 +1,4 @@
+import {encounterChoices,encounterApply,campChoices,expedition,encounterView} from './encounters.js';
 import {CHAPTER_FIVE} from './chapterFive.js';
 import {CHAPTER_SIX} from './chapterSix.js';
 export const CAMPAIGN=[CHAPTER_FIVE,CHAPTER_SIX];
@@ -7,7 +8,8 @@ export function longChoices(core){
  const t=core.state.story,e=t.expansion,c=activeChapter(core);
  if(!c&&e&&!e.finished)return [choice('next','Kapitel 6 beginnen: Der stumme Chor','Aufbruch nach Nereid')];
  if(!c)return t.ending&&!e?.finished?[choice('begin','Kapitel 5 beginnen: Asche im Dockring','Die Folgen deiner Entscheidung auf Helios-9')]:[];
- const out=[],p=e.cases,selected=c.missions.find(m=>m.id===e.selected);
+ const urgent=encounterChoices(core);if(urgent)return urgent;
+ const out=campChoices(core),p=e.cases,selected=c.missions.find(m=>m.id===e.selected);
  if(core.state.location===c.hub){
  for(const m of c.missions.filter(m=>!p[m.id]?.done&&m.requires.every(id=>p[id]?.done)))out.push(choice('case_'+m.id,m.title,m.optional?'Crewgeschichte · optional':'Ermittlung · Hauptgeschichte'));
  if(c.missions.filter(m=>!m.optional).every(m=>p[m.id]?.done))out.push(choice('finish','Den Handlungsbogen abschließen','Offene Nebengeschichten bleiben im Logbuch vermerkt'));
@@ -28,6 +30,7 @@ export function longChoices(core){
 }
 export function longApply(core,id,check){
  if(!longChoices(core).some(x=>x.id===id))throw Error('Diese Handlung ist nicht verfügbar.');
+ if(id.startsWith('long_scene_')||id.startsWith('long_camp_')||id==='long_rescue')return encounterApply(core,id,check);
  const s=core.state,t=s.story;let e=t.expansion,c=activeChapter(core),narrative='',events=[];
  if(id==='long_next'){e.index++;e.active=true;e.selected=null;c=CAMPAIGN[e.index];s.location=c.hub;narrative=c.premise;}else if(id==='long_begin'){
  e=t.expansion={active:true,index:0,cases:{},selected:null,attention:0};c=CAMPAIGN[0];s.location=c.hub;
@@ -40,7 +43,7 @@ export function longApply(core,id,check){
  const m=c.missions.find(m=>m.id===e.selected),q=e.cases[m.id];
  if(id.startsWith('long_lead_')||id.startsWith('long_careful_')){
  const i=Number(id.split('_').at(-1)),l=m.leads[i],careful=id.startsWith('long_careful_');
- const ok=careful||check(l.stat,14,[]);q.leads[i]=true;
+ const r=expedition(core);const ok=careful||check(l.stat,14+Math.floor(r.fatigue/2),[]);if(careful)r.fatigue=Math.min(8,r.fatigue+1);q.leads[i]=true;
  narrative=l.entry+'\n\n'+(careful?'Ihr arbeitet zu zweit. Lyra hält die Herkunft der Aufzeichnung fest, während du das Material sicherst.':ok?'Du sicherst die Aufzeichnung, bevor der Zugriff geschlossen wird.':'Der Zugriff löst eine Rückfrage aus. Ihr bekommt das Material, aber eure Namen stehen jetzt im Kontrollprotokoll.');
  if(!ok){e.attention++;events.push('Aufmerksamkeit +1');}
  t.minutes+=careful?12:5;
@@ -60,4 +63,4 @@ export function longApply(core,id,check){
  }
  t.minutes+=2;return {narrative,events};
 }
-export function longStatus(core){const c=activeChapter(core);if(!c)return null;const e=core.state.story.expansion,m=c.missions.find(x=>x.id===e.selected&&!e.cases[x.id]?.done);return {number:'KAPITEL '+c.number,title:c.title,goal:m?m.title+': Hinweise vor Ort sichern, lesen und im Koordinationsraum abgleichen.':'Wähle im Koordinationsraum einen offenen Fall.'};}
+export function longStatus(core){const c=activeChapter(core);if(!c)return null;const pending=encounterView(core);if(pending)return {number:'KAPITEL '+c.number,title:c.title,goal:pending.title+' · '+pending.stage};const e=core.state.story.expansion,m=c.missions.find(x=>x.id===e.selected&&!e.cases[x.id]?.done);return {number:'KAPITEL '+c.number,title:c.title,goal:m?m.title+': Hinweise vor Ort sichern, lesen und im Koordinationsraum abgleichen.':'Wähle im Koordinationsraum einen offenen Fall.'};}

@@ -1,3 +1,7 @@
+# Aktuelle Version: VOIDBOUND 1.4
+
+Acht neue Einsätze mit 24 Entscheidungsszenen, Vorräten, Erschöpfung und wirksamer Aufmerksamkeit. [Änderungen und Prüfbericht](docs/RELEASE_1.4.md).
+
 # Neu: VOIDBOUND 1.3
 
 Zwei zusätzliche spielbare Kapitel. Nach dem bisherigen Ende im Spiel fortsetzen. Details und Grenzen der Spielzeit: [Kapitel 1.3](docs/KAPITEL_1.3.md).
@@ -44,4 +48,3 @@ Der vorherige Quellstand liegt unter `Sicherungen/vor_story_1.2_20260908_174901/
 `npm run verify` prüft Syntax und automatisierte Tests. [Prüfbericht](docs/PRUEFBERICHT_1.2.md) und [Aufbau der Geschichte](docs/SPIELKONZEPT_1.2.md) beschreiben Umfang und Grenzen. Dies ist ein abgeschlossener erster Handlungsbogen, noch kein mehraktiges fertiges Rollenspiel.
 
 Das aktuelle Arbeitsprojekt ist **C:\Users\philc\Documents\VOIDBound**.
-

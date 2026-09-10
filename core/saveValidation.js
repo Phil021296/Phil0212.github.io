@@ -1,3 +1,4 @@
+import {ENCOUNTERS} from './encounterContent.js';
 const record=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const fail=()=>{throw new Error('Der Spielstand ist unvollständig oder beschädigt. Die bisherige Reise bleibt erhalten.');};
 export function validateSave(parsed,core){
@@ -24,6 +25,17 @@ export function validateSave(parsed,core){
  for(const q of Object.values(expansion.cases))if(!record(q)||!Array.isArray(q.leads)||!Array.isArray(q.read)||q.leads.length>3||q.read.length>3||typeof q.solved!=='boolean'||typeof q.done!=='boolean')fail();
  }
  if(parsed.lastResolution&&(!record(parsed.lastResolution)||!Array.isArray(parsed.lastResolution.events)||!Array.isArray(parsed.lastResolution.rolls)))fail();
+ const r=parsed.story?.expansion?.expedition;
+ if(r!==undefined){
+ if(!record(r)||!record(r.scenes)||!record(r.flags))fail();
+ if(r.activeScene!==undefined&&r.activeScene!==null&&!ENCOUNTERS.some(v=>v.id===r.activeScene&&v.chapter===parsed.story.expansion.index&&!r.scenes[v.id]?.done))fail();
+ for(const [k,max] of [['supplies',12],['fatigue',8],['lastCheckpoint',100000],['provisioned',1]])if(!Number.isInteger(r[k])||r[k]<0||r[k]>max)fail();
+ for(const [id,p] of Object.entries(r.scenes)){
+ const event=ENCOUNTERS.find(x=>x.id===id);
+ if(!event||!record(p)||!Number.isInteger(p.step)||p.step<0||p.step>event.stages.length||typeof p.done!=='boolean'||p.done!==(p.step===event.stages.length)||!Array.isArray(p.outcomes)||p.outcomes.length!==p.step||p.flags!==undefined&&!record(p.flags))fail();
+ for(let i=0;i<p.outcomes.length;i++){const o=p.outcomes[i];if(!record(o)||!event.stages[i].options.some(x=>x.id===o.choice)||typeof o.success!=='boolean')fail();}
+ }
+ }
  const fresh=core.freshState(),state={...fresh,...parsed};
  for(const k of ['flags','ship','reputation','equipment'])state[k]={...fresh[k],...parsed[k]};
  state.npc={...fresh.npc,...parsed.npc};

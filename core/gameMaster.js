@@ -1,3 +1,4 @@
+import {encounterView,expedition} from './encounters.js';
 import {ensureStory,storyChoices,presentNPCs,PEOPLE,chapter,exitsFor,arrival,applyStory,atmosphere} from './campaign.js';
 // Only this engine changes the world. Model output is an untrusted action proposal.
 export const KINDS=['story','observe','talk','threaten','insult','protect','ignore','attack','force','sneak','hack','repair','travel','take','buy','heal','rest','use'];
@@ -14,7 +15,7 @@ export function contextFor(core){
  const npcs=presentNPCs(core);
 
  const objects={ship_bridge:['echo_artifact','ship_systems'],ship_engineering:['reactor'],ship_cargo:['artifact_crate'],helios_security:['security_door','terminal'],ruins_gate:['gate','glyphs'],ruins_archive:['archive']}[s.location]||[];
- return {campaign:{chapter:chapter(core),beats:s.story.beats,journal:s.story.journal,choices:storyChoices(core),characters:PEOPLE},location:{id:s.location,...core.location(),desc:atmosphere(core)},scene,player:s.player,hp:s.hp,inventory:s.inventory,equipment:s.equipment,ship:s.ship,flags:s.flags,quests:s.quests,reputation:s.reputation,npcs:Object.fromEntries(npcs.map(id=>[id,s.npc[id]])),targets:[...new Set(['self',...storyChoices(core).map(c=>c.id),...npcs,...objects,...(scene.hostiles?['pirate_leader','pirates']:[]),...s.inventory,...scene.loot,...core.location().exits,...(s.location==='helios_market'?core.data.items.filter(i=>i.value>0).map(i=>i.id):[]),...(['ship','ship_airlock','planet'].includes(core.location().type)?['ship_bridge','helios_docks',...(s.flags.nereidUnlocked?['nereid_surface']:[])]:[])])],recentActions:s.history.slice(-8).map(h=>({input:h.raw,events:h.events,turn:h.turn,location:h.location})),memories:s.memories.slice(-20),lastNarrative:s.lastNarrative,allowedKinds:KINDS};
+ return {campaign:{encounter:encounterView(core),expedition:expedition(core),chapter:chapter(core),beats:s.story.beats,journal:s.story.journal,choices:storyChoices(core),characters:PEOPLE},location:{id:s.location,...core.location(),desc:atmosphere(core)},scene,player:s.player,hp:s.hp,inventory:s.inventory,equipment:s.equipment,ship:s.ship,flags:s.flags,quests:s.quests,reputation:s.reputation,npcs:Object.fromEntries(npcs.map(id=>[id,s.npc[id]])),targets:[...new Set(['self',...storyChoices(core).map(c=>c.id),...npcs,...objects,...(scene.hostiles?['pirate_leader','pirates']:[]),...s.inventory,...scene.loot,...core.location().exits,...(s.location==='helios_market'?core.data.items.filter(i=>i.value>0).map(i=>i.id):[]),...(['ship','ship_airlock','planet'].includes(core.location().type)?['ship_bridge','helios_docks',...(s.flags.nereidUnlocked?['nereid_surface']:[])]:[])])],recentActions:s.history.slice(-8).map(h=>({input:h.raw,events:h.events,turn:h.turn,location:h.location})),memories:s.memories.slice(-20),lastNarrative:s.lastNarrative,allowedKinds:KINDS};
 }
 export function validatePlan(plan){
  if(!plan||typeof plan.intent!=='string'||typeof plan.tone!=='string'||!Array.isArray(plan.actions)||!plan.actions.length||plan.actions.length>6)throw new Error('invalid_ai_plan');
@@ -22,8 +23,8 @@ export function validatePlan(plan){
  return plan;
 }
 export function resolvePlan(core,raw,proposal){
- const plan=validatePlan(proposal);if(plan.actions.some(a=>a.kind==='story'&&!a.negated)){if(plan.actions.length!==1)throw new Error('story_action_must_be_single');return resolveChoice(core,{choiceId:plan.actions[0].target,input:raw});}const s=core.state,origin=s.location,events=[],rolls=[];
- s.version='1.2.0';s.gameMaster=true;s.currentActionRepeat=0;
+ const plan=validatePlan(proposal);if(plan.actions.some(a=>a.kind==='story'&&!a.negated)){if(plan.actions.length!==1)throw new Error('story_action_must_be_single');return resolveChoice(core,{choiceId:plan.actions[0].target,input:raw});}if(encounterView(core)||core.state.story?.expansion?.active&&core.state.hp<=0)throw new Error('Diese Begegnung benötigt eine passende Szenenhandlung. Beschreibe eine der angebotenen Möglichkeiten.');const s=core.state,origin=s.location,events=[],rolls=[];
+ s.version='1.4.0';s.gameMaster=true;s.currentActionRepeat=0;
  const check=(stat,dc,tags=[])=>{const r=core.check(stat,dc,tags);rolls.push(r);return r.success;};
  const note=text=>events.push(text);
  core.advanceTurn();
@@ -98,12 +99,12 @@ export function resolvePlan(core,raw,proposal){
 
 export function resolveChoice(core,{choiceId,travelId,input}){
  ensureStory(core);sceneFor(core);
- if(core.state.hp<=0&&choiceId!=='recover')throw new Error('Du brauchst medizinische Hilfe. Lass dich von der Crew bergen.');
+ if(core.state.hp<=0&&!['recover','long_rescue'].includes(choiceId))throw new Error('Du brauchst medizinische Hilfe. Lass dich von der Crew bergen.');
  
  if(choiceId&&!storyChoices(core).some(c=>c.id===choiceId))throw new Error('Diese Möglichkeit ist nicht mehr verfügbar.');
  if(travelId&&!exitsFor(core).some(e=>e.id===travelId))throw new Error('Dieser Weg ist nicht zugänglich.');
  if(Boolean(choiceId)===Boolean(travelId))throw new Error('Ungültige Handlung.');
- const s=core.state,origin=s.location,rolls=[];s.currentActionRepeat=0;core.advanceTurn();s.version='1.2.0';
+ const s=core.state,origin=s.location,rolls=[];s.currentActionRepeat=0;core.advanceTurn();s.version='1.4.0';
  const check=(stat,dc,tags)=>{const r=core.check(stat,dc,tags);rolls.push(r);return r.success;};
  let outcome;
  if(travelId){s.previousLocation=s.location;s.location=travelId;s.story.minutes+=2;outcome={events:['Ort erreicht: '+core.location().name],narrative:arrival(core)};}
